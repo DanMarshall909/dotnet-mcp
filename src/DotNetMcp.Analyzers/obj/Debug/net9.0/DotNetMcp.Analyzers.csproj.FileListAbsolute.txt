@@ -1,0 +1,11 @@
+/home/dan/code/dotnet-mcp/src/DotNetMcp.Analyzers/bin/Debug/net9.0/DotNetMcp.Analyzers.deps.json
+/home/dan/code/dotnet-mcp/src/DotNetMcp.Analyzers/bin/Debug/net9.0/DotNetMcp.Analyzers.dll
+/home/dan/code/dotnet-mcp/src/DotNetMcp.Analyzers/bin/Debug/net9.0/DotNetMcp.Analyzers.pdb
+/home/dan/code/dotnet-mcp/src/DotNetMcp.Analyzers/obj/Debug/net9.0/DotNetMcp.Analyzers.GeneratedMSBuildEditorConfig.editorconfig
+/home/dan/code/dotnet-mcp/src/DotNetMcp.Analyzers/obj/Debug/net9.0/DotNetMcp.Analyzers.AssemblyInfoInputs.cache
+/home/dan/code/dotnet-mcp/src/DotNetMcp.Analyzers/obj/Debug/net9.0/DotNetMcp.Analyzers.AssemblyInfo.cs
+/home/dan/code/dotnet-mcp/src/DotNetMcp.Analyzers/obj/Debug/net9.0/DotNetMcp.Analyzers.csproj.CoreCompileInputs.cache
+/home/dan/code/dotnet-mcp/src/DotNetMcp.Analyzers/obj/Debug/net9.0/DotNetMcp.Analyzers.dll
+/home/dan/code/dotnet-mcp/src/DotNetMcp.Analyzers/obj/Debug/net9.0/refint/DotNetMcp.Analyzers.dll
+/home/dan/code/dotnet-mcp/src/DotNetMcp.Analyzers/obj/Debug/net9.0/DotNetMcp.Analyzers.pdb
+/home/dan/code/dotnet-mcp/src/DotNetMcp.Analyzers/obj/Debug/net9.0/ref/DotNetMcp.Analyzers.dll
