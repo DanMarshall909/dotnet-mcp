@@ -1,16 +1,12 @@
 using Microsoft.Extensions.Logging;
-using ModelContextProtocol.Core;
-using ModelContextProtocol.Core.Protocol;
 using System.ComponentModel;
 using System.Text.Json;
 using DotNetMcp.Core.Refactoring;
 
 namespace DotNetMcp.Server;
 
-[McpServerTool]
 public class RenameSymbolTool(ILogger<RenameSymbolTool> logger)
 {
-    [McpServerTool]
     [Description("Rename a symbol (variable, method, class, etc.) throughout the solution")]
     public async Task<string> RenameSymbol(
         [Description("The path to the solution or project file")] string solutionPath,

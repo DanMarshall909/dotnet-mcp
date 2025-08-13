@@ -117,6 +117,10 @@
         "net9.0": {
           "targetAlias": "net9.0",
           "dependencies": {
+            "Microsoft.Extensions.Hosting": {
+              "target": "Package",
+              "version": "[9.0.8, )"
+            },
             "ModelContextProtocol": {
               "target": "Package",
               "version": "[0.3.0-preview.3, )"

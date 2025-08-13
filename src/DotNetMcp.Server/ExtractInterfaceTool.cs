@@ -1,16 +1,12 @@
 using Microsoft.Extensions.Logging;
-using ModelContextProtocol.Core;
-using ModelContextProtocol.Core.Protocol;
 using System.ComponentModel;
 using System.Text.Json;
 using DotNetMcp.Core.Refactoring;
 
 namespace DotNetMcp.Server;
 
-[McpServerTool]
 public class ExtractInterfaceTool(ILogger<ExtractInterfaceTool> logger)
 {
-    [McpServerTool]
     [Description("Extract an interface from an existing class")]
     public async Task<string> ExtractInterface(
         [Description("The path to the C# file containing the class")] string filePath,

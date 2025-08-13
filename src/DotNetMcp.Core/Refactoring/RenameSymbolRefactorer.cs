@@ -68,7 +68,7 @@ public class RenameSymbolRefactorer
             conflicts.ToArray());
     }
 
-    private static async Task<(SyntaxNode newRoot, int changes, string symbolType, string[] conflicts)> RenameInDocument(
+    private static Task<(SyntaxNode newRoot, int changes, string symbolType, string[] conflicts)> RenameInDocument(
         SyntaxNode root, 
         SemanticModel semanticModel, 
         string originalName, 
@@ -124,7 +124,7 @@ public class RenameSymbolRefactorer
             }
         }
 
-        return (newRoot, changes, symbolType, conflicts.ToArray());
+        return Task.FromResult((newRoot, changes, symbolType, conflicts.ToArray()));
     }
 
     private static bool ShouldRenameSymbol(ISymbol symbol, string symbolKind)

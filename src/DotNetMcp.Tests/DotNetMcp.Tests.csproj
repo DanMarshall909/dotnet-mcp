@@ -18,4 +18,9 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\DotNetMcp.Core\DotNetMcp.Core.csproj" />
+    <ProjectReference Include="..\DotNetMcp.Server\DotNetMcp.Server.csproj" />
+  </ItemGroup>
+
 </Project>

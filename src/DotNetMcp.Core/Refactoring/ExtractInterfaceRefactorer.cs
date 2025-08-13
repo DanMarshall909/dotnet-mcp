@@ -110,7 +110,7 @@ public class ExtractInterfaceRefactorer
 
         foreach (var member in classMembers)
         {
-            var interfaceMember = member switch
+            MemberDeclarationSyntax? interfaceMember = member switch
             {
                 MethodDeclarationSyntax method => CreateInterfaceMethod(method),
                 PropertyDeclarationSyntax property => CreateInterfaceProperty(property),
@@ -188,7 +188,7 @@ public class ExtractInterfaceRefactorer
 
         if (namespaceDeclaration != null)
         {
-            var interfaceNamespace = namespaceDeclaration switch
+            MemberDeclarationSyntax interfaceNamespace = namespaceDeclaration switch
             {
                 NamespaceDeclarationSyntax ns => ns.WithMembers(SyntaxFactory.SingletonList<MemberDeclarationSyntax>(interfaceDeclaration)),
                 FileScopedNamespaceDeclarationSyntax fsns => SyntaxFactory.FileScopedNamespaceDeclaration(fsns.Name)

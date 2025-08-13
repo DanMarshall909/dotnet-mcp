@@ -69,8 +69,8 @@ public class ExtractMethodRefactorer
     {
         return selectedNode switch
         {
-            StatementSyntax statement => [statement],
             BlockSyntax block => block.Statements.AsEnumerable(),
+            StatementSyntax statement => [statement],
             _ => selectedNode.DescendantNodes().OfType<StatementSyntax>()
         };
     }

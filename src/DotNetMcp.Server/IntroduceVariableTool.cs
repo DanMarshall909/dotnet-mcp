@@ -1,16 +1,12 @@
 using Microsoft.Extensions.Logging;
-using ModelContextProtocol.Core;
-using ModelContextProtocol.Core.Protocol;
 using System.ComponentModel;
 using System.Text.Json;
 using DotNetMcp.Core.Refactoring;
 
 namespace DotNetMcp.Server;
 
-[McpServerTool]
 public class IntroduceVariableTool(ILogger<IntroduceVariableTool> logger)
 {
-    [McpServerTool]
     [Description("Introduce a variable for an expression or literal value")]
     public async Task<string> IntroduceVariable(
         [Description("The path to the C# file")] string filePath,

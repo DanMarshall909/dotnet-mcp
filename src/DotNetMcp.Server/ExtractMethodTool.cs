@@ -1,16 +1,12 @@
 using Microsoft.Extensions.Logging;
-using ModelContextProtocol.Core;
-using ModelContextProtocol.Core.Protocol;
 using System.ComponentModel;
 using System.Text.Json;
 using DotNetMcp.Core.Refactoring;
 
 namespace DotNetMcp.Server;
 
-[McpServerTool]
 public class ExtractMethodTool(ILogger<ExtractMethodTool> logger)
 {
-    [McpServerTool]
     [Description("Extract a block of code into a new method")]
     public async Task<string> ExtractMethod(
         [Description("The path to the C# file")] string filePath,
