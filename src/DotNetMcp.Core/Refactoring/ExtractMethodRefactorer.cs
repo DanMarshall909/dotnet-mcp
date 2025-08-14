@@ -82,7 +82,7 @@ public class ExtractMethodRefactorer : RefactoringBase
             newRoot!.ToFullString(),
             newMethod.ToFullString(),
             usedVariableNames,
-            returnType.ToString());
+            GetTypeDisplayName(returnType));
     }
 
     private static StatementSyntax? FindStatementByText(SyntaxNode root, string targetText)
@@ -217,22 +217,110 @@ public class ExtractMethodRefactorer : RefactoringBase
 
     private static TypeSyntax DetermineReturnType(StatementSyntax statement, SemanticModel semanticModel)
     {
-        var returnStatements = statement.DescendantNodes().OfType<ReturnStatementSyntax>();
+        var returnStatements = new List<ReturnStatementSyntax>();
+        
+        // Check if the statement itself is a return statement
+        if (statement is ReturnStatementSyntax returnStmt)
+        {
+            returnStatements.Add(returnStmt);
+        }
+        
+        // Also check for return statements within the statement (for compound statements)
+        returnStatements.AddRange(statement.DescendantNodes().OfType<ReturnStatementSyntax>());
         
         if (returnStatements.Any())
         {
-            var firstReturn = returnStatements.First();
-            if (firstReturn.Expression != null)
+            var returnTypes = new List<ITypeSymbol>();
+            
+            foreach (var retStmt in returnStatements)
             {
-                var typeInfo = semanticModel.GetTypeInfo(firstReturn.Expression);
+                if (retStmt.Expression != null)
+                {
+                    var typeInfo = semanticModel.GetTypeInfo(retStmt.Expression);
+                    if (typeInfo.Type != null)
+                    {
+                        returnTypes.Add(typeInfo.Type);
+                    }
+                }
+            }
+            
+            if (returnTypes.Any())
+            {
+                // Find common base type if multiple return types
+                var commonType = FindCommonBaseType(returnTypes);
+                return CreateTypeSyntax(commonType);
+            }
+        }
+        
+        // Check if the statement is an expression that could be returned
+        if (statement is ExpressionStatementSyntax exprStmt)
+        {
+            var typeInfo = semanticModel.GetTypeInfo(exprStmt.Expression);
+            if (typeInfo.Type != null && !typeInfo.Type.SpecialType.Equals(SpecialType.System_Void))
+            {
+                // This could be converted to a return statement
+                return CreateTypeSyntax(typeInfo.Type);
+            }
+        }
+        
+        // Check for variable assignments that could be returned
+        var assignments = statement.DescendantNodes().OfType<AssignmentExpressionSyntax>();
+        foreach (var assignment in assignments)
+        {
+            if (assignment.IsKind(SyntaxKind.SimpleAssignmentExpression))
+            {
+                var typeInfo = semanticModel.GetTypeInfo(assignment.Right);
                 if (typeInfo.Type != null)
                 {
-                    return SyntaxFactory.IdentifierName(typeInfo.Type.Name);
+                    // Could potentially return the assigned value
+                    // For now, keep as void but this could be enhanced
+                    break;
                 }
             }
         }
 
         return SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.VoidKeyword));
+    }
+
+    private static ITypeSymbol FindCommonBaseType(List<ITypeSymbol> types)
+    {
+        if (!types.Any()) 
+        {
+            throw new ArgumentException("Cannot find common base type of empty list");
+        }
+        
+        var commonType = types.First();
+        foreach (var type in types.Skip(1))
+        {
+            commonType = FindCommonBaseType(commonType, type);
+        }
+        
+        return commonType;
+    }
+
+    private static ITypeSymbol FindCommonBaseType(ITypeSymbol type1, ITypeSymbol type2)
+    {
+        if (SymbolEqualityComparer.Default.Equals(type1, type2))
+            return type1;
+            
+        // Simple heuristic: if types don't match, return object
+        var objectType = type1.ContainingAssembly.GetTypeByMetadataName("System.Object");
+        return objectType ?? type1; // Fallback to first type if object not found
+    }
+
+    private static TypeSyntax CreateTypeSyntax(ITypeSymbol typeSymbol)
+    {
+        return typeSymbol.SpecialType switch
+        {
+            SpecialType.System_Boolean => SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.BoolKeyword)),
+            SpecialType.System_Int32 => SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.IntKeyword)),
+            SpecialType.System_String => SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.StringKeyword)),
+            SpecialType.System_Double => SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.DoubleKeyword)),
+            SpecialType.System_Single => SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.FloatKeyword)),
+            SpecialType.System_Int64 => SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.LongKeyword)),
+            SpecialType.System_Void => SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.VoidKeyword)),
+            _ => SyntaxFactory.IdentifierName(typeSymbol.Name)
+        };
     }
 
     private static MethodDeclarationSyntax CreateExtractedMethod(string methodName, SeparatedSyntaxList<ParameterSyntax> parameters, TypeSyntax returnType, StatementSyntax statement)
@@ -265,5 +353,15 @@ public class ExtractMethodRefactorer : RefactoringBase
 
         return SyntaxFactory.ExpressionStatement(invocation)
             .WithLeadingTrivia(SyntaxFactory.Whitespace("            "));
+    }
+
+    private static string GetTypeDisplayName(TypeSyntax typeSyntax)
+    {
+        return typeSyntax switch
+        {
+            PredefinedTypeSyntax predefined => predefined.Keyword.ValueText,
+            IdentifierNameSyntax identifier => identifier.Identifier.ValueText,
+            _ => typeSyntax.ToString()
+        };
     }
 }
