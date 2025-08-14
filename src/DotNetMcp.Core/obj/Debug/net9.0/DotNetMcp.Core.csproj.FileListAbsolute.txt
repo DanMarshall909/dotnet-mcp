@@ -1,5 +1,0 @@
-/home/dan/code/dotnet-mcp/src/DotNetMcp.Core/obj/Debug/net9.0/DotNetMcp.Core.csproj.AssemblyReference.cache
-/home/dan/code/dotnet-mcp/src/DotNetMcp.Core/obj/Debug/net9.0/DotNetMcp.Core.GeneratedMSBuildEditorConfig.editorconfig
-/home/dan/code/dotnet-mcp/src/DotNetMcp.Core/obj/Debug/net9.0/DotNetMcp.Core.AssemblyInfoInputs.cache
-/home/dan/code/dotnet-mcp/src/DotNetMcp.Core/obj/Debug/net9.0/DotNetMcp.Core.AssemblyInfo.cs
-/home/dan/code/dotnet-mcp/src/DotNetMcp.Core/obj/Debug/net9.0/DotNetMcp.Core.csproj.CoreCompileInputs.cache
