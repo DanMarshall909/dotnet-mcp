@@ -9,6 +9,7 @@ public class McpServer(IServiceProvider services)
 {
     private readonly ILogger<McpServer> _logger = services.GetRequiredService<ILogger<McpServer>>();
     private readonly ExtractMethodTool _extractMethod = services.GetRequiredService<ExtractMethodTool>();
+    private readonly ExtractMethodCompactTool _extractMethodCompact = services.GetRequiredService<ExtractMethodCompactTool>();
     private readonly RenameSymbolTool _renameSymbol = services.GetRequiredService<RenameSymbolTool>();
     private readonly ExtractInterfaceTool _extractInterface = services.GetRequiredService<ExtractInterfaceTool>();
     private readonly IntroduceVariableTool _introduceVariable = services.GetRequiredService<IntroduceVariableTool>();
@@ -69,6 +70,7 @@ public class McpServer(IServiceProvider services)
                 ["tools"] = new JsonArray
                 {
                     CreateTool("extract_method", "Extract selected code into a new method"),
+                    CreateTool("extract_method_compact", "Extract method with delta output for token efficiency"),
                     CreateTool("rename_symbol", "Rename a symbol throughout the codebase"),
                     CreateTool("extract_interface", "Extract an interface from a class"),
                     CreateTool("introduce_variable", "Introduce a variable for an expression")
@@ -95,6 +97,10 @@ public class McpServer(IServiceProvider services)
             var result = toolName switch
             {
                 "extract_method" => await _extractMethod.ExtractMethod(
+                    arguments["filePath"]?.GetValue<string>() ?? "",
+                    arguments["selectedCode"]?.GetValue<string>() ?? "",
+                    arguments["methodName"]?.GetValue<string>() ?? ""),
+                "extract_method_compact" => await _extractMethodCompact.ExtractMethodCompact(
                     arguments["filePath"]?.GetValue<string>() ?? "",
                     arguments["selectedCode"]?.GetValue<string>() ?? "",
                     arguments["methodName"]?.GetValue<string>() ?? ""),

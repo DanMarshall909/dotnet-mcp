@@ -13,6 +13,7 @@ builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogL
 
 // Register our refactoring tools
 builder.Services.AddSingleton<ExtractMethodTool>();
+builder.Services.AddSingleton<ExtractMethodCompactTool>();
 builder.Services.AddSingleton<RenameSymbolTool>();
 builder.Services.AddSingleton<ExtractInterfaceTool>();
 builder.Services.AddSingleton<IntroduceVariableTool>();

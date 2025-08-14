@@ -1,6 +1,8 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using DotNetMcp.Core.Models;
+using DotNetMcp.Core.Services;
 
 namespace DotNetMcp.Core.Refactoring;
 
@@ -83,6 +85,42 @@ public class ExtractMethodRefactorer : RefactoringBase
             newMethod.ToFullString(),
             usedVariableNames,
             GetTypeDisplayName(returnType));
+    }
+
+    public async Task<CompactRefactoringResult> ExtractMethodCompactAsync(string code, string selectedCode, string methodName, string filePath = "")
+    {
+        try
+        {
+            var fullResult = await ExtractMethodAsync(code, selectedCode, methodName);
+            
+            // Generate delta instead of full content
+            var delta = DeltaGenerator.GenerateDelta(
+                filePath,
+                code,
+                fullResult.ModifiedCode,
+                fullResult.ExtractedMethod,
+                fullResult.UsedVariables);
+            
+            var tokenSavings = DeltaGenerator.EstimateTokenSavings(delta, code);
+            
+            var summary = new RefactoringSummary(
+                methodName,
+                fullResult.ReturnType,
+                fullResult.UsedVariables,
+                tokenSavings);
+            
+            return new CompactRefactoringResult(
+                true,
+                new List<RefactoringDelta> { delta },
+                Summary: summary);
+        }
+        catch (Exception ex)
+        {
+            return new CompactRefactoringResult(
+                false,
+                new List<RefactoringDelta>(),
+                ex.Message);
+        }
     }
 
     private static StatementSyntax? FindStatementByText(SyntaxNode root, string targetText)
