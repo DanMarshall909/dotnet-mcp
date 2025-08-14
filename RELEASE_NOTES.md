@@ -36,7 +36,7 @@ This release transforms the MCP .NET server into a production-ready, robust code
 
 ### 🛠️ MCP Tools Available
 
-1. **`extract_method`** - Extract code into new methods with VSA
+1. **`extract_method`** - Extract code into new methods
 2. **`rename_symbol`** - Rename symbols throughout codebase  
 3. **`extract_interface`** - Extract interfaces from classes
 4. **`find_symbol`** - Find symbols with advanced filtering and fallback strategies
@@ -55,7 +55,7 @@ This release transforms the MCP .NET server into a production-ready, robust code
 ## 🏗️ Technical Improvements
 
 ### Architecture
-- **Vertical Slice Architecture (VSA)** with MediatR and CQRS patterns
+- **Clean architecture** with MediatR and CQRS patterns
 - **Comprehensive error type hierarchy** with structured error handling
 - **Analysis strategy pattern** with pluggable fallback strategies
 - **Dependency injection** throughout with proper service registration

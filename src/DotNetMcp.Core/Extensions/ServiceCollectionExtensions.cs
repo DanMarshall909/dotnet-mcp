@@ -1,4 +1,5 @@
 using System.IO.Abstractions;
+using DotNetMcp.Core.Features.AutoFix;
 using DotNetMcp.Core.Features.CodeAnalysis;
 using DotNetMcp.Core.Features.ExtractInterface;
 using DotNetMcp.Core.Features.ExtractMethod;
@@ -8,17 +9,17 @@ using DotNetMcp.Core.Services;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DotNetMcp.Core.VSA;
+namespace DotNetMcp.Core.Extensions;
 
 /// <summary>
-/// Extension methods for configuring VSA services
+/// Extension methods for configuring core services
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Add all VSA services to the DI container
+    /// Add all core services to the DI container
     /// </summary>
-    public static IServiceCollection AddVerticalSliceArchitecture(this IServiceCollection services)
+    public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
         // Add MediatR
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(ServiceCollectionExtensions).Assembly));
@@ -34,6 +35,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<GetClassContextHandler>();
         services.AddScoped<AnalyzeProjectStructureHandler>();
         services.AddScoped<FindSymbolUsagesHandler>();
+        services.AddScoped<AutoFixHandler>();
         
         // Add solution analysis handlers
         services.AddScoped<Features.SolutionAnalysis.AnalyzeSolutionHandler>();

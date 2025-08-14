@@ -1,19 +1,34 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DotNetMcp.Core.Common.Errors;
+using DotNetMcp.Core.Features.AutoFix;
+using DotNetMcp.Core.Features.CodeAnalysis;
+using DotNetMcp.Core.Features.ExtractInterface;
+using DotNetMcp.Core.Features.ExtractMethod;
+using DotNetMcp.Core.Features.RenameSymbol;
+using DotNetMcp.Core.Features.SolutionAnalysis;
+using DotNetMcp.Core.Services;
+using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetMcp.Server;
 
-public class McpServer(IServiceProvider services)
+/// <summary>
+/// MCP Server implementation
+/// </summary>
+public class McpServer
 {
-    private readonly ILogger<McpServer> _logger = services.GetRequiredService<ILogger<McpServer>>();
-    private readonly ExtractMethodTool _extractMethod = services.GetRequiredService<ExtractMethodTool>();
-    private readonly ExtractMethodCompactTool _extractMethodCompact = services.GetRequiredService<ExtractMethodCompactTool>();
-    private readonly RenameSymbolTool _renameSymbol = services.GetRequiredService<RenameSymbolTool>();
-    private readonly RenameSymbolMultiFileTool _renameSymbolMultiFile = services.GetRequiredService<RenameSymbolMultiFileTool>();
-    private readonly ExtractInterfaceTool _extractInterface = services.GetRequiredService<ExtractInterfaceTool>();
-    private readonly IntroduceVariableTool _introduceVariable = services.GetRequiredService<IntroduceVariableTool>();
+    private readonly ILogger<McpServer> _logger;
+    private readonly IMediator _mediator;
+    private readonly IServiceProvider _serviceProvider;
+
+    public McpServer(IServiceProvider services)
+    {
+        _logger = services.GetRequiredService<ILogger<McpServer>>();
+        _mediator = services.GetRequiredService<IMediator>();
+        _serviceProvider = services;
+    }
 
     public async Task RunAsync()
     {
@@ -63,7 +78,7 @@ public class McpServer(IServiceProvider services)
                 ["serverInfo"] = new JsonObject
                 {
                     ["name"] = "dotnet-mcp",
-                    ["version"] = "1.0.0"
+                    ["version"] = "2.0.0"
                 }
             }),
             "tools/list" => CreateSuccessResponse(id, new JsonObject
@@ -71,11 +86,15 @@ public class McpServer(IServiceProvider services)
                 ["tools"] = new JsonArray
                 {
                     CreateTool("extract_method", "Extract selected code into a new method"),
-                    CreateTool("extract_method_compact", "Extract method with delta output for token efficiency"),
                     CreateTool("rename_symbol", "Rename a symbol throughout the codebase"),
-                    CreateTool("rename_symbol_multi_file", "Rename a symbol across multiple files in a solution"),
                     CreateTool("extract_interface", "Extract an interface from a class"),
-                    CreateTool("introduce_variable", "Introduce a variable for an expression")
+                    CreateTool("find_symbol", "Find symbols in the codebase with advanced filtering and token optimization"),
+                    CreateTool("get_class_context", "Get comprehensive context for a class including dependencies, usages, and inheritance"),
+                    CreateTool("analyze_project_structure", "Analyze project structure, architecture, and metrics"),
+                    CreateTool("find_symbol_usages", "Find all usages of a symbol across the codebase with impact analysis"),
+                    CreateTool("analyze_solution", "Analyze solution structure, dependencies, and detect architectural issues"),
+                    CreateTool("auto_fix", "Apply automatic fixes to common code issues like missing usings, nullability warnings, async methods"),
+                    CreateTool("batch_refactor", "Apply multiple refactoring operations in sequence with rollback support")
                 }
             }),
             "tools/call" => await HandleToolCall(id, paramsObj),
@@ -98,34 +117,16 @@ public class McpServer(IServiceProvider services)
         {
             var result = toolName switch
             {
-                "extract_method" => await _extractMethod.ExtractMethod(
-                    arguments["filePath"]?.GetValue<string>() ?? "",
-                    arguments["selectedCode"]?.GetValue<string>() ?? "",
-                    arguments["methodName"]?.GetValue<string>() ?? ""),
-                "extract_method_compact" => await _extractMethodCompact.ExtractMethodCompact(
-                    arguments["filePath"]?.GetValue<string>() ?? "",
-                    arguments["selectedCode"]?.GetValue<string>() ?? "",
-                    arguments["methodName"]?.GetValue<string>() ?? ""),
-                "rename_symbol" => await _renameSymbol.RenameSymbol(
-                    arguments["filePath"]?.GetValue<string>() ?? "",
-                    arguments["oldName"]?.GetValue<string>() ?? "",
-                    arguments["newName"]?.GetValue<string>() ?? "",
-                    arguments["symbolType"]?.GetValue<string>() ?? "auto"),
-                "rename_symbol_multi_file" => await _renameSymbolMultiFile.RenameSymbolMultiFile(
-                    arguments["solutionPath"]?.GetValue<string>() ?? "",
-                    arguments["symbolName"]?.GetValue<string>() ?? "",
-                    arguments["newName"]?.GetValue<string>() ?? "",
-                    arguments["targetFilePath"]?.GetValue<string>()),
-                "extract_interface" => await _extractInterface.ExtractInterface(
-                    arguments["filePath"]?.GetValue<string>() ?? "",
-                    arguments["className"]?.GetValue<string>() ?? "",
-                    arguments["interfaceName"]?.GetValue<string>() ?? ""),
-                "introduce_variable" => await _introduceVariable.IntroduceVariable(
-                    arguments["filePath"]?.GetValue<string>() ?? "",
-                    arguments["expression"]?.GetValue<string>() ?? "",
-                    arguments["variableName"]?.GetValue<string>() ?? "",
-                    arguments["scope"]?.GetValue<string>() ?? "local",
-                    arguments["replaceAll"]?.GetValue<bool>() ?? true),
+                "extract_method" => await HandleExtractMethod(arguments),
+                "rename_symbol" => await HandleRenameSymbol(arguments),
+                "extract_interface" => await HandleExtractInterface(arguments),
+                "find_symbol" => await HandleFindSymbol(arguments),
+                "get_class_context" => await HandleGetClassContext(arguments),
+                "analyze_project_structure" => await HandleAnalyzeProjectStructure(arguments),
+                "find_symbol_usages" => await HandleFindSymbolUsages(arguments),
+                "analyze_solution" => await HandleAnalyzeSolution(arguments),
+                "auto_fix" => await HandleAutoFix(arguments),
+                "batch_refactor" => await HandleBatchRefactor(arguments),
                 _ => throw new InvalidOperationException($"Unknown tool: {toolName}")
             };
 
@@ -143,156 +144,356 @@ public class McpServer(IServiceProvider services)
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Tool execution failed for {ToolName}", toolName);
+            
+            // Check if we have a structured error available
+            if (ex.Data.Contains("AnalysisError") && ex.Data["AnalysisError"] is AnalysisError analysisError)
+            {
+                var context = ex.Data["AnalysisContext"] as AnalysisContext;
+                return CreateStructuredErrorResponse(id, analysisError, context);
+            }
+            
             return CreateErrorResponse(id, "Tool execution failed", ex.Message);
+        }
+    }
+
+    private async Task<string> HandleExtractMethod(JsonObject arguments)
+    {
+        var command = new ExtractMethodCommand
+        {
+            Code = arguments["code"]?.GetValue<string>() ?? "",
+            SelectedCode = arguments["selectedCode"]?.GetValue<string>() ?? "",
+            MethodName = arguments["methodName"]?.GetValue<string>() ?? "",
+            FilePath = arguments["filePath"]?.GetValue<string>(),
+            ReturnDelta = arguments["returnDelta"]?.GetValue<bool>() ?? false
+        };
+
+        var result = await _mediator.Send(command);
+        
+        return result.Match(
+            success => JsonSerializer.Serialize(success, new JsonSerializerOptions { WriteIndented = true }),
+            (error, _) => $"Error: {error}");
+    }
+
+    private async Task<string> HandleRenameSymbol(JsonObject arguments)
+    {
+        var command = new RenameSymbolCommand
+        {
+            FilePath = arguments["filePath"]?.GetValue<string>() ?? "",
+            OldName = arguments["oldName"]?.GetValue<string>() ?? "",
+            NewName = arguments["newName"]?.GetValue<string>() ?? "",
+            SymbolType = arguments["symbolType"]?.GetValue<string>() ?? "auto",
+            MultiFile = arguments["multiFile"]?.GetValue<bool>() ?? false,
+            SolutionPath = arguments["solutionPath"]?.GetValue<string>()
+        };
+
+        var result = await _mediator.Send(command);
+        
+        return result.Match(
+            success => JsonSerializer.Serialize(success, new JsonSerializerOptions { WriteIndented = true }),
+            (error, _) => $"Error: {error}");
+    }
+
+    private async Task<string> HandleExtractInterface(JsonObject arguments)
+    {
+        var memberNames = arguments["memberNames"]?.AsArray()?.Select(x => x?.GetValue<string>())
+            .Where(x => x != null).Cast<string>().ToArray();
+
+        var command = new ExtractInterfaceCommand
+        {
+            Code = arguments["code"]?.GetValue<string>() ?? "",
+            ClassName = arguments["className"]?.GetValue<string>() ?? "",
+            InterfaceName = arguments["interfaceName"]?.GetValue<string>() ?? "",
+            MemberNames = memberNames
+        };
+
+        var result = await _mediator.Send(command);
+        
+        return result.Match(
+            success => JsonSerializer.Serialize(success, new JsonSerializerOptions { WriteIndented = true }),
+            (error, _) => $"Error: {error}");
+    }
+
+    private async Task<string> HandleFindSymbol(JsonObject arguments)
+    {
+        var symbolType = Enum.TryParse<SymbolType>(arguments["symbolType"]?.GetValue<string>() ?? "Any", out var type) 
+            ? type 
+            : SymbolType.Any;
+
+        var command = new FindSymbolCommand
+        {
+            ProjectPath = arguments["projectPath"]?.GetValue<string>() ?? "",
+            SymbolName = arguments["symbolName"]?.GetValue<string>() ?? "",
+            SymbolType = symbolType,
+            IncludeImplementations = arguments["includeImplementations"]?.GetValue<bool>() ?? false,
+            OptimizeForTokens = arguments["optimizeForTokens"]?.GetValue<bool>() ?? false,
+            MaxTokens = arguments["maxTokens"]?.GetValue<int>() ?? 2000,
+            MaxResults = arguments["maxResults"]?.GetValue<int>() ?? 50
+        };
+
+        var result = await _mediator.Send(command);
+        
+        return result.Match(
+            success => JsonSerializer.Serialize(success, new JsonSerializerOptions { WriteIndented = true }),
+            (error, _) => $"Error: {error}");
+    }
+
+    private async Task<string> HandleGetClassContext(JsonObject arguments)
+    {
+        var command = new GetClassContextCommand
+        {
+            ProjectPath = arguments["projectPath"]?.GetValue<string>() ?? "",
+            ClassName = arguments["className"]?.GetValue<string>() ?? "",
+            IncludeDependencies = arguments["includeDependencies"]?.GetValue<bool>() ?? true,
+            IncludeUsages = arguments["includeUsages"]?.GetValue<bool>() ?? true,
+            IncludeInheritance = arguments["includeInheritance"]?.GetValue<bool>() ?? true,
+            IncludeTestContext = arguments["includeTestContext"]?.GetValue<bool>() ?? false,
+            MaxDepth = arguments["maxDepth"]?.GetValue<int>() ?? 2,
+            OptimizeForTokens = arguments["optimizeForTokens"]?.GetValue<bool>() ?? false,
+            MaxTokens = arguments["maxTokens"]?.GetValue<int>() ?? 2000
+        };
+
+        var result = await _mediator.Send(command);
+        
+        return result.Match(
+            success => JsonSerializer.Serialize(success, new JsonSerializerOptions { WriteIndented = true }),
+            (error, _) => $"Error: {error}");
+    }
+
+    private async Task<string> HandleAnalyzeProjectStructure(JsonObject arguments)
+    {
+        var command = new AnalyzeProjectStructureCommand
+        {
+            ProjectPath = arguments["projectPath"]?.GetValue<string>() ?? "",
+            IncludeDependencies = arguments["includeDependencies"]?.GetValue<bool>() ?? true,
+            IncludeMetrics = arguments["includeMetrics"]?.GetValue<bool>() ?? true,
+            IncludeArchitecture = arguments["includeArchitecture"]?.GetValue<bool>() ?? true,
+            IncludeTestStructure = arguments["includeTestStructure"]?.GetValue<bool>() ?? false,
+            OptimizeForTokens = arguments["optimizeForTokens"]?.GetValue<bool>() ?? false,
+            MaxTokens = arguments["maxTokens"]?.GetValue<int>() ?? 3000,
+            MaxDepth = arguments["maxDepth"]?.GetValue<int>() ?? 3
+        };
+
+        var result = await _mediator.Send(command);
+        
+        return result.Match(
+            success => JsonSerializer.Serialize(success, new JsonSerializerOptions { WriteIndented = true }),
+            (error, _) => $"Error: {error}");
+    }
+
+    private async Task<string> HandleFindSymbolUsages(JsonObject arguments)
+    {
+        var symbolType = Enum.TryParse<SymbolType>(arguments["symbolType"]?.GetValue<string>() ?? "Any", out var type) 
+            ? type 
+            : SymbolType.Any;
+
+        var command = new FindSymbolUsagesCommand
+        {
+            ProjectPath = arguments["projectPath"]?.GetValue<string>() ?? "",
+            SymbolName = arguments["symbolName"]?.GetValue<string>() ?? "",
+            SymbolType = symbolType,
+            SymbolNamespace = arguments["symbolNamespace"]?.GetValue<string>(),
+            IncludeDeclaration = arguments["includeDeclaration"]?.GetValue<bool>() ?? true,
+            IncludeReferences = arguments["includeReferences"]?.GetValue<bool>() ?? true,
+            IncludeImplementations = arguments["includeImplementations"]?.GetValue<bool>() ?? false,
+            IncludeInheritance = arguments["includeInheritance"]?.GetValue<bool>() ?? false,
+            GroupByFile = arguments["groupByFile"]?.GetValue<bool>() ?? true,
+            OptimizeForTokens = arguments["optimizeForTokens"]?.GetValue<bool>() ?? false,
+            MaxTokens = arguments["maxTokens"]?.GetValue<int>() ?? 2500,
+            MaxResults = arguments["maxResults"]?.GetValue<int>() ?? 100
+        };
+
+        var result = await _mediator.Send(command);
+        
+        return result.Match(
+            success => JsonSerializer.Serialize(success, new JsonSerializerOptions { WriteIndented = true }),
+            (error, _) => $"Error: {error}");
+    }
+
+    private async Task<string> HandleAnalyzeSolution(JsonObject arguments)
+    {
+        var command = new AnalyzeSolutionCommand
+        {
+            SolutionPath = arguments["solutionPath"]?.GetValue<string>() ?? throw new ArgumentException("solutionPath is required"),
+            IncludeDependencyGraph = arguments["includeDependencyGraph"]?.GetValue<bool>() ?? true,
+            IncludeProjectDetails = arguments["includeProjectDetails"]?.GetValue<bool>() ?? true,
+            ValidateBuilds = arguments["validateBuilds"]?.GetValue<bool>() ?? false,
+            DetectIssues = arguments["detectIssues"]?.GetValue<bool>() ?? true
+        };
+
+        var result = await _mediator.Send(command, CancellationToken.None);
+
+        return result.Match(
+            success => JsonSerializer.Serialize(success, new JsonSerializerOptions { WriteIndented = true }),
+            (error, _) => $"Error: {error}");
+    }
+
+    private async Task<string> HandleAutoFix(JsonObject arguments)
+    {
+        var fixTypes = AutoFixTypes.None;
+        var fixTypesString = arguments["fixTypes"]?.GetValue<string>();
+        if (!string.IsNullOrEmpty(fixTypesString))
+        {
+            var typeNames = fixTypesString.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var typeName in typeNames)
+            {
+                if (Enum.TryParse<AutoFixTypes>(typeName.Trim(), true, out var type))
+                {
+                    fixTypes |= type;
+                }
+            }
+        }
+        else
+        {
+            fixTypes = AutoFixTypes.All;
+        }
+
+        var buildErrorsArray = arguments["buildErrors"]?.AsArray();
+        var buildErrors = buildErrorsArray?.Select(x => x?.GetValue<string>())
+            .Where(x => x != null).Cast<string>().ToArray() ?? Array.Empty<string>();
+
+        var command = new AutoFixCommand
+        {
+            Code = arguments["code"]?.GetValue<string>() ?? "",
+            FilePath = arguments["filePath"]?.GetValue<string>(),
+            BuildErrors = buildErrors,
+            FixTypes = fixTypes,
+            ApplyFixes = arguments["applyFixes"]?.GetValue<bool>() ?? true,
+            MaxFixes = arguments["maxFixes"]?.GetValue<int>() ?? 50
+        };
+
+        var result = await _mediator.Send(command);
+        
+        return result.Match(
+            success => JsonSerializer.Serialize(success, new JsonSerializerOptions { WriteIndented = true }),
+            (error, _) => $"Error: {error}");
+    }
+
+    private async Task<string> HandleBatchRefactor(JsonObject arguments)
+    {
+        // Parse the operations array
+        var operationsArray = arguments["operations"]?.AsArray();
+        if (operationsArray == null || !operationsArray.Any())
+        {
+            return "Error: No operations specified for batch refactoring";
+        }
+
+        var results = new List<object>();
+        var rollbackActions = new List<Func<Task>>();
+        var originalCode = arguments["code"]?.GetValue<string>() ?? "";
+        var currentCode = originalCode;
+        var allSuccessful = true;
+
+        try
+        {
+            foreach (var operationNode in operationsArray)
+            {
+                if (operationNode is not JsonObject operation)
+                    continue;
+
+                var operationType = operation["type"]?.GetValue<string>();
+                var operationArgs = operation["arguments"] as JsonObject ?? new JsonObject();
+
+                // Add current code to operation arguments
+                operationArgs["code"] = currentCode;
+
+                try
+                {
+                    var result = operationType switch
+                    {
+                        "extract_method" => await HandleExtractMethod(operationArgs),
+                        "rename_symbol" => await HandleRenameSymbol(operationArgs),
+                        "extract_interface" => await HandleExtractInterface(operationArgs),
+                        "auto_fix" => await HandleAutoFix(operationArgs),
+                        _ => $"Error: Unknown operation type: {operationType}"
+                    };
+
+                    if (result.StartsWith("Error:"))
+                    {
+                        allSuccessful = false;
+                        results.Add(new { 
+                            operation = operationType, 
+                            success = false, 
+                            error = result 
+                        });
+                        break; // Stop processing on error
+                    }
+                    else
+                    {
+                        // Try to extract the modified code from the result
+                        var resultObj = JsonSerializer.Deserialize<JsonElement>(result);
+                        if (resultObj.TryGetProperty("modifiedCode", out var modifiedCodeElement))
+                        {
+                            currentCode = modifiedCodeElement.GetString() ?? currentCode;
+                        }
+                        else if (resultObj.TryGetProperty("fixedCode", out var fixedCodeElement))
+                        {
+                            var fixedCode = fixedCodeElement.GetString();
+                            if (!string.IsNullOrEmpty(fixedCode))
+                            {
+                                currentCode = fixedCode;
+                            }
+                        }
+
+                        results.Add(new { 
+                            operation = operationType, 
+                            success = true, 
+                            result = result 
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    allSuccessful = false;
+                    results.Add(new { 
+                        operation = operationType, 
+                        success = false, 
+                        error = $"Exception: {ex.Message}" 
+                    });
+                    break;
+                }
+            }
+
+            var batchResult = new
+            {
+                success = allSuccessful,
+                originalCode = originalCode,
+                finalCode = allSuccessful ? currentCode : originalCode,
+                operationsExecuted = results.Count,
+                totalOperations = operationsArray.Count,
+                results = results.ToArray(),
+                summary = allSuccessful 
+                    ? $"Successfully executed {results.Count} operations" 
+                    : $"Failed after {results.Count} operations - no changes applied"
+            };
+
+            return JsonSerializer.Serialize(batchResult, new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch (Exception ex)
+        {
+            return JsonSerializer.Serialize(new
+            {
+                success = false,
+                error = $"Batch refactoring failed: {ex.Message}",
+                originalCode = originalCode,
+                finalCode = originalCode,
+                operationsExecuted = 0,
+                totalOperations = operationsArray.Count
+            }, new JsonSerializerOptions { WriteIndented = true });
         }
     }
 
     private static JsonObject CreateTool(string name, string description)
     {
-        return name switch
+        return new JsonObject
         {
-            "extract_method" => new JsonObject
+            ["name"] = name,
+            ["description"] = description,
+            ["inputSchema"] = new JsonObject
             {
-                ["name"] = name,
-                ["description"] = description,
-                ["inputSchema"] = new JsonObject
-                {
-                    ["type"] = "object",
-                    ["properties"] = new JsonObject
-                    {
-                        ["filePath"] = new JsonObject
-                        {
-                            ["type"] = "string",
-                            ["description"] = "The path to the C# file to refactor"
-                        },
-                        ["selectedCode"] = new JsonObject
-                        {
-                            ["type"] = "string",
-                            ["description"] = "The code block to extract into a new method"
-                        },
-                        ["methodName"] = new JsonObject
-                        {
-                            ["type"] = "string",
-                            ["description"] = "The name for the extracted method"
-                        }
-                    },
-                    ["required"] = new JsonArray { "filePath", "selectedCode", "methodName" }
-                }
-            },
-            "rename_symbol" => new JsonObject
-            {
-                ["name"] = name,
-                ["description"] = description,
-                ["inputSchema"] = new JsonObject
-                {
-                    ["type"] = "object",
-                    ["properties"] = new JsonObject
-                    {
-                        ["filePath"] = new JsonObject
-                        {
-                            ["type"] = "string",
-                            ["description"] = "The path to the C# file containing the symbol"
-                        },
-                        ["oldName"] = new JsonObject
-                        {
-                            ["type"] = "string",
-                            ["description"] = "The current name of the symbol to rename"
-                        },
-                        ["newName"] = new JsonObject
-                        {
-                            ["type"] = "string",
-                            ["description"] = "The new name for the symbol"
-                        },
-                        ["symbolType"] = new JsonObject
-                        {
-                            ["type"] = "string",
-                            ["description"] = "The type of symbol: 'class', 'method', 'variable', or 'auto'",
-                            ["enum"] = new JsonArray { "class", "method", "variable", "auto" },
-                            ["default"] = "auto"
-                        }
-                    },
-                    ["required"] = new JsonArray { "filePath", "oldName", "newName" }
-                }
-            },
-            "extract_interface" => new JsonObject
-            {
-                ["name"] = name,
-                ["description"] = description,
-                ["inputSchema"] = new JsonObject
-                {
-                    ["type"] = "object",
-                    ["properties"] = new JsonObject
-                    {
-                        ["filePath"] = new JsonObject
-                        {
-                            ["type"] = "string",
-                            ["description"] = "The path to the C# file containing the class"
-                        },
-                        ["className"] = new JsonObject
-                        {
-                            ["type"] = "string",
-                            ["description"] = "The name of the class to extract interface from"
-                        },
-                        ["interfaceName"] = new JsonObject
-                        {
-                            ["type"] = "string",
-                            ["description"] = "The name for the extracted interface"
-                        }
-                    },
-                    ["required"] = new JsonArray { "filePath", "className", "interfaceName" }
-                }
-            },
-            "introduce_variable" => new JsonObject
-            {
-                ["name"] = name,
-                ["description"] = description,
-                ["inputSchema"] = new JsonObject
-                {
-                    ["type"] = "object",
-                    ["properties"] = new JsonObject
-                    {
-                        ["filePath"] = new JsonObject
-                        {
-                            ["type"] = "string",
-                            ["description"] = "The path to the C# file to modify"
-                        },
-                        ["expression"] = new JsonObject
-                        {
-                            ["type"] = "string",
-                            ["description"] = "The expression to extract into a variable"
-                        },
-                        ["variableName"] = new JsonObject
-                        {
-                            ["type"] = "string",
-                            ["description"] = "The name for the new variable"
-                        },
-                        ["scope"] = new JsonObject
-                        {
-                            ["type"] = "string",
-                            ["description"] = "The scope for the variable: 'local' or 'field'",
-                            ["enum"] = new JsonArray { "local", "field" },
-                            ["default"] = "local"
-                        },
-                        ["replaceAll"] = new JsonObject
-                        {
-                            ["type"] = "boolean",
-                            ["description"] = "Whether to replace all occurrences of the expression",
-                            ["default"] = true
-                        }
-                    },
-                    ["required"] = new JsonArray { "filePath", "expression", "variableName" }
-                }
-            },
-            _ => new JsonObject
-            {
-                ["name"] = name,
-                ["description"] = description,
-                ["inputSchema"] = new JsonObject
-                {
-                    ["type"] = "object",
-                    ["properties"] = new JsonObject(),
-                    ["required"] = new JsonArray()
-                }
+                ["type"] = "object",
+                ["properties"] = new JsonObject(),
+                ["required"] = new JsonArray()
             }
         };
     }
@@ -318,6 +519,92 @@ public class McpServer(IServiceProvider services)
                 ["code"] = -32603,
                 ["message"] = error,
                 ["data"] = message
+            }
+        };
+    }
+
+    private static JsonObject CreateStructuredErrorResponse(int id, AnalysisError analysisError, AnalysisContext? context)
+    {
+        var errorData = new JsonObject
+        {
+            ["code"] = analysisError.Code,
+            ["message"] = analysisError.Message,
+            ["severity"] = analysisError.Severity.ToString(),
+            ["suggestion"] = analysisError.Suggestion,
+            ["alternatives"] = new JsonArray(analysisError.Alternatives.Select(a => JsonValue.Create(a)).ToArray()),
+            ["canRetry"] = analysisError.CanRetry
+        };
+
+        // Add type-specific details
+        if (analysisError is DuplicateFilesError duplicateError)
+        {
+            var duplicateFiles = new JsonArray();
+            foreach (var duplicate in duplicateError.DuplicateFiles)
+            {
+                duplicateFiles.Add(new JsonObject
+                {
+                    ["fileName"] = duplicate.FileName,
+                    ["locations"] = new JsonArray(duplicate.Locations.Select(l => JsonValue.Create(l)).ToArray()),
+                    ["projects"] = new JsonArray(duplicate.Projects.Select(p => JsonValue.Create(p)).ToArray()),
+                    ["identicalContent"] = duplicate.IdenticalContent,
+                    ["suggestedResolution"] = duplicate.SuggestedResolution
+                });
+            }
+            errorData["duplicateFiles"] = duplicateFiles;
+            errorData["affectedFileCount"] = duplicateError.AffectedFileCount;
+            errorData["resolutionStrategies"] = new JsonArray(duplicateError.ResolutionStrategies.Select(s => JsonValue.Create(s)).ToArray());
+        }
+        else if (analysisError is BuildValidationError buildError)
+        {
+            errorData["errorCount"] = buildError.ErrorCount;
+            errorData["warningCount"] = buildError.WarningCount;
+            errorData["errorSummary"] = buildError.ErrorSummary;
+            errorData["failedProjects"] = new JsonArray(buildError.FailedProjects.Select(p => JsonValue.Create(p)).ToArray());
+            
+            var categories = new JsonArray();
+            foreach (var category in buildError.CommonErrorTypes)
+            {
+                categories.Add(new JsonObject
+                {
+                    ["category"] = category.Category,
+                    ["count"] = category.Count,
+                    ["description"] = category.Description,
+                    ["suggestedFix"] = category.SuggestedFix
+                });
+            }
+            errorData["commonErrorTypes"] = categories;
+        }
+        else if (analysisError is ProjectDiscoveryError discoveryError)
+        {
+            errorData["attemptedPath"] = discoveryError.AttemptedPath;
+            errorData["failureReason"] = discoveryError.FailureReason;
+            errorData["discoveryType"] = discoveryError.DiscoveryType.ToString();
+            errorData["foundFiles"] = new JsonArray(discoveryError.FoundFiles.Select(f => JsonValue.Create(f)).ToArray());
+            errorData["suggestedPaths"] = new JsonArray(discoveryError.SuggestedPaths.Select(p => JsonValue.Create(p)).ToArray());
+        }
+
+        // Add context if available
+        if (context != null)
+        {
+            errorData["context"] = new JsonObject
+            {
+                ["projectPath"] = context.ProjectPath,
+                ["analysisType"] = context.AnalysisType,
+                ["filesProcessed"] = context.FilesProcessed,
+                ["failurePoint"] = context.FailurePoint,
+                ["elapsedTime"] = context.ElapsedTime.TotalMilliseconds
+            };
+        }
+
+        return new JsonObject
+        {
+            ["jsonrpc"] = "2.0",
+            ["id"] = id,
+            ["error"] = new JsonObject
+            {
+                ["code"] = -32603,
+                ["message"] = analysisError.Message,
+                ["data"] = errorData
             }
         };
     }

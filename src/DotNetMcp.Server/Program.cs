@@ -1,5 +1,5 @@
-using DotNetMcp.Core.VSA;
-using DotNetMcp.Server.VSA;
+using DotNetMcp.Core.Extensions;
+using DotNetMcp.Server;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -10,14 +10,14 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
 
-// Add Vertical Slice Architecture services
-builder.Services.AddVerticalSliceArchitecture();
+// Add core services
+builder.Services.AddCoreServices();
 
-// Register the VSA MCP server
-builder.Services.AddScoped<McpServerWithVSA>();
+// Register the MCP server
+builder.Services.AddScoped<McpServer>();
 
 var app = builder.Build();
 
-// Run the VSA MCP server
-var mcpServer = app.Services.GetRequiredService<McpServerWithVSA>();
+// Run the MCP server
+var mcpServer = app.Services.GetRequiredService<McpServer>();
 await mcpServer.RunAsync();
