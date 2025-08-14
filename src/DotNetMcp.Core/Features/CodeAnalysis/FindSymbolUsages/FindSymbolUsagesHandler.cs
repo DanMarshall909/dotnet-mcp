@@ -16,12 +16,14 @@ public class FindSymbolUsagesHandler : BaseHandler<FindSymbolUsagesCommand, Find
 {
     private readonly IFileSystem _fileSystem;
     private readonly BuildValidationService _buildValidationService;
+    private readonly CompilationService _compilationService;
 
-    public FindSymbolUsagesHandler(ILogger<FindSymbolUsagesHandler> logger, IFileSystem fileSystem, BuildValidationService buildValidationService) 
+    public FindSymbolUsagesHandler(ILogger<FindSymbolUsagesHandler> logger, IFileSystem fileSystem, BuildValidationService buildValidationService, CompilationService compilationService) 
         : base(logger)
     {
         _fileSystem = fileSystem;
         _buildValidationService = buildValidationService;
+        _compilationService = compilationService;
     }
 
     protected override async Task<Result<FindSymbolUsagesResponse>> HandleAsync(FindSymbolUsagesCommand request, CancellationToken cancellationToken)
@@ -134,15 +136,18 @@ public class FindSymbolUsagesHandler : BaseHandler<FindSymbolUsagesCommand, Find
             try
             {
                 var content = await _fileSystem.File.ReadAllTextAsync(filePath);
-                var syntaxTree = CSharpSyntaxTree.ParseText(content);
+                var syntaxTree = CSharpSyntaxTree.ParseText(content, path: filePath);
                 var root = await syntaxTree.GetRootAsync();
 
-                var compilation = CSharpCompilation.Create(
-                    "TempAssembly",
-                    syntaxTrees: new[] { syntaxTree },
-                    references: GetBasicReferences());
+                // Use CompilationService to handle duplicate file names properly
+                var compilation = await _compilationService.CreateSingleFileCompilationAsync(filePath);
+                var semanticModel = _compilationService.GetSemanticModel(compilation, filePath);
 
-                var semanticModel = compilation.GetSemanticModel(syntaxTree);
+                if (semanticModel == null)
+                {
+                    Logger.LogWarning("Could not create semantic model for file: {FilePath}", filePath);
+                    continue;
+                }
 
                 // Find declaration based on symbol type
                 var declarationNode = FindDeclarationNode(root, symbolName, symbolType, symbolNamespace);
@@ -171,15 +176,18 @@ public class FindSymbolUsagesHandler : BaseHandler<FindSymbolUsagesCommand, Find
         try
         {
             var content = await _fileSystem.File.ReadAllTextAsync(filePath);
-            var syntaxTree = CSharpSyntaxTree.ParseText(content);
+            var syntaxTree = CSharpSyntaxTree.ParseText(content, path: filePath);
             var root = await syntaxTree.GetRootAsync();
 
-            var compilation = CSharpCompilation.Create(
-                "TempAssembly",
-                syntaxTrees: new[] { syntaxTree },
-                references: GetBasicReferences());
+            // Use CompilationService to handle duplicate file names properly
+            var compilation = await _compilationService.CreateSingleFileCompilationAsync(filePath);
+            var semanticModel = _compilationService.GetSemanticModel(compilation, filePath);
 
-            var semanticModel = compilation.GetSemanticModel(syntaxTree);
+            if (semanticModel == null)
+            {
+                Logger.LogWarning("Could not create semantic model for file: {FilePath}", filePath);
+                return usages;
+            }
             var lines = content.Split('\n');
 
             // Find all identifiers matching the symbol name

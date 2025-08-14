@@ -34,6 +34,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<GetClassContextHandler>();
         services.AddScoped<AnalyzeProjectStructureHandler>();
         services.AddScoped<FindSymbolUsagesHandler>();
+        
+        // Add solution analysis handlers
+        services.AddScoped<Features.SolutionAnalysis.AnalyzeSolutionHandler>();
 
         // Add existing refactoring services
         services.AddScoped<ExtractMethodRefactorer>();
@@ -47,6 +50,29 @@ public static class ServiceCollectionExtensions
         
         // Add build validation service
         services.AddScoped<BuildValidationService>();
+        
+        // Add compilation service for duplicate file handling
+        services.AddScoped<CompilationService>();
+        
+        // Add solution-wide analysis services
+        services.AddScoped<SolutionDiscoveryService>();
+        services.AddScoped<WorkspaceManager>();
+        
+        // Add error analysis service
+        services.AddScoped<ErrorAnalysisService>();
+        
+        // Add analysis strategies
+        services.AddScoped<Analysis.Strategies.SemanticRoslynStrategy>();
+        services.AddScoped<Analysis.Strategies.SyntaxRoslynStrategy>();
+        services.AddScoped<Analysis.Strategies.TextBasedStrategy>();
+        services.AddScoped<Analysis.Strategies.HybridStrategy>();
+        services.AddScoped<Analysis.Strategies.AnalysisStrategyChain>();
+        
+        // Register strategies as IAnalysisStrategy implementations
+        services.AddScoped<Analysis.Strategies.IAnalysisStrategy, Analysis.Strategies.SemanticRoslynStrategy>();
+        services.AddScoped<Analysis.Strategies.IAnalysisStrategy, Analysis.Strategies.SyntaxRoslynStrategy>();
+        services.AddScoped<Analysis.Strategies.IAnalysisStrategy, Analysis.Strategies.TextBasedStrategy>();
+        services.AddScoped<Analysis.Strategies.IAnalysisStrategy, Analysis.Strategies.HybridStrategy>();
 
         return services;
     }

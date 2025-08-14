@@ -1,9 +1,12 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DotNetMcp.Core.Common.Errors;
 using DotNetMcp.Core.Features.CodeAnalysis;
 using DotNetMcp.Core.Features.ExtractInterface;
 using DotNetMcp.Core.Features.ExtractMethod;
 using DotNetMcp.Core.Features.RenameSymbol;
+using DotNetMcp.Core.Features.SolutionAnalysis;
+using DotNetMcp.Core.Services;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -17,11 +20,13 @@ public class McpServerWithVSA
 {
     private readonly ILogger<McpServerWithVSA> _logger;
     private readonly IMediator _mediator;
+    private readonly IServiceProvider _serviceProvider;
 
     public McpServerWithVSA(IServiceProvider services)
     {
         _logger = services.GetRequiredService<ILogger<McpServerWithVSA>>();
         _mediator = services.GetRequiredService<IMediator>();
+        _serviceProvider = services;
     }
 
     public async Task RunAsync()
@@ -85,7 +90,8 @@ public class McpServerWithVSA
                     CreateTool("find_symbol", "Find symbols in the codebase with advanced filtering and token optimization"),
                     CreateTool("get_class_context", "Get comprehensive context for a class including dependencies, usages, and inheritance"),
                     CreateTool("analyze_project_structure", "Analyze project structure, architecture, and metrics"),
-                    CreateTool("find_symbol_usages", "Find all usages of a symbol across the codebase with impact analysis")
+                    CreateTool("find_symbol_usages", "Find all usages of a symbol across the codebase with impact analysis"),
+                    CreateTool("analyze_solution", "Analyze solution structure, dependencies, and detect architectural issues")
                 }
             }),
             "tools/call" => await HandleToolCall(id, paramsObj),
@@ -115,6 +121,7 @@ public class McpServerWithVSA
                 "get_class_context" => await HandleGetClassContext(arguments),
                 "analyze_project_structure" => await HandleAnalyzeProjectStructure(arguments),
                 "find_symbol_usages" => await HandleFindSymbolUsages(arguments),
+                "analyze_solution" => await HandleAnalyzeSolution(arguments),
                 _ => throw new InvalidOperationException($"Unknown tool: {toolName}")
             };
 
@@ -133,6 +140,14 @@ public class McpServerWithVSA
         catch (Exception ex)
         {
             _logger.LogError(ex, "Tool execution failed for {ToolName}", toolName);
+            
+            // Check if we have a structured error available
+            if (ex.Data.Contains("AnalysisError") && ex.Data["AnalysisError"] is AnalysisError analysisError)
+            {
+                var context = ex.Data["AnalysisContext"] as AnalysisContext;
+                return CreateStructuredErrorResponse(id, analysisError, context);
+            }
+            
             return CreateErrorResponse(id, "Tool execution failed", ex.Message);
         }
     }
@@ -290,6 +305,24 @@ public class McpServerWithVSA
             (error, _) => $"Error: {error}");
     }
 
+    private async Task<string> HandleAnalyzeSolution(JsonObject arguments)
+    {
+        var command = new AnalyzeSolutionCommand
+        {
+            SolutionPath = arguments["solutionPath"]?.GetValue<string>() ?? throw new ArgumentException("solutionPath is required"),
+            IncludeDependencyGraph = arguments["includeDependencyGraph"]?.GetValue<bool>() ?? true,
+            IncludeProjectDetails = arguments["includeProjectDetails"]?.GetValue<bool>() ?? true,
+            ValidateBuilds = arguments["validateBuilds"]?.GetValue<bool>() ?? false,
+            DetectIssues = arguments["detectIssues"]?.GetValue<bool>() ?? true
+        };
+
+        var result = await _mediator.Send(command, CancellationToken.None);
+
+        return result.Match(
+            success => JsonSerializer.Serialize(success, new JsonSerializerOptions { WriteIndented = true }),
+            (error, _) => $"Error: {error}");
+    }
+
     private static JsonObject CreateTool(string name, string description)
     {
         return new JsonObject
@@ -326,6 +359,92 @@ public class McpServerWithVSA
                 ["code"] = -32603,
                 ["message"] = error,
                 ["data"] = message
+            }
+        };
+    }
+
+    private static JsonObject CreateStructuredErrorResponse(int id, AnalysisError analysisError, AnalysisContext? context)
+    {
+        var errorData = new JsonObject
+        {
+            ["code"] = analysisError.Code,
+            ["message"] = analysisError.Message,
+            ["severity"] = analysisError.Severity.ToString(),
+            ["suggestion"] = analysisError.Suggestion,
+            ["alternatives"] = new JsonArray(analysisError.Alternatives.Select(a => JsonValue.Create(a)).ToArray()),
+            ["canRetry"] = analysisError.CanRetry
+        };
+
+        // Add type-specific details
+        if (analysisError is DuplicateFilesError duplicateError)
+        {
+            var duplicateFiles = new JsonArray();
+            foreach (var duplicate in duplicateError.DuplicateFiles)
+            {
+                duplicateFiles.Add(new JsonObject
+                {
+                    ["fileName"] = duplicate.FileName,
+                    ["locations"] = new JsonArray(duplicate.Locations.Select(l => JsonValue.Create(l)).ToArray()),
+                    ["projects"] = new JsonArray(duplicate.Projects.Select(p => JsonValue.Create(p)).ToArray()),
+                    ["identicalContent"] = duplicate.IdenticalContent,
+                    ["suggestedResolution"] = duplicate.SuggestedResolution
+                });
+            }
+            errorData["duplicateFiles"] = duplicateFiles;
+            errorData["affectedFileCount"] = duplicateError.AffectedFileCount;
+            errorData["resolutionStrategies"] = new JsonArray(duplicateError.ResolutionStrategies.Select(s => JsonValue.Create(s)).ToArray());
+        }
+        else if (analysisError is BuildValidationError buildError)
+        {
+            errorData["errorCount"] = buildError.ErrorCount;
+            errorData["warningCount"] = buildError.WarningCount;
+            errorData["errorSummary"] = buildError.ErrorSummary;
+            errorData["failedProjects"] = new JsonArray(buildError.FailedProjects.Select(p => JsonValue.Create(p)).ToArray());
+            
+            var categories = new JsonArray();
+            foreach (var category in buildError.CommonErrorTypes)
+            {
+                categories.Add(new JsonObject
+                {
+                    ["category"] = category.Category,
+                    ["count"] = category.Count,
+                    ["description"] = category.Description,
+                    ["suggestedFix"] = category.SuggestedFix
+                });
+            }
+            errorData["commonErrorTypes"] = categories;
+        }
+        else if (analysisError is ProjectDiscoveryError discoveryError)
+        {
+            errorData["attemptedPath"] = discoveryError.AttemptedPath;
+            errorData["failureReason"] = discoveryError.FailureReason;
+            errorData["discoveryType"] = discoveryError.DiscoveryType.ToString();
+            errorData["foundFiles"] = new JsonArray(discoveryError.FoundFiles.Select(f => JsonValue.Create(f)).ToArray());
+            errorData["suggestedPaths"] = new JsonArray(discoveryError.SuggestedPaths.Select(p => JsonValue.Create(p)).ToArray());
+        }
+
+        // Add context if available
+        if (context != null)
+        {
+            errorData["context"] = new JsonObject
+            {
+                ["projectPath"] = context.ProjectPath,
+                ["analysisType"] = context.AnalysisType,
+                ["filesProcessed"] = context.FilesProcessed,
+                ["failurePoint"] = context.FailurePoint,
+                ["elapsedTime"] = context.ElapsedTime.TotalMilliseconds
+            };
+        }
+
+        return new JsonObject
+        {
+            ["jsonrpc"] = "2.0",
+            ["id"] = id,
+            ["error"] = new JsonObject
+            {
+                ["code"] = -32603,
+                ["message"] = analysisError.Message,
+                ["data"] = errorData
             }
         };
     }

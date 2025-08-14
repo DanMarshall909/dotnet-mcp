@@ -16,12 +16,14 @@ public class GetClassContextHandler : BaseHandler<GetClassContextCommand, GetCla
 {
     private readonly IFileSystem _fileSystem;
     private readonly BuildValidationService _buildValidationService;
+    private readonly CompilationService _compilationService;
 
-    public GetClassContextHandler(ILogger<GetClassContextHandler> logger, IFileSystem fileSystem, BuildValidationService buildValidationService) 
+    public GetClassContextHandler(ILogger<GetClassContextHandler> logger, IFileSystem fileSystem, BuildValidationService buildValidationService, CompilationService compilationService) 
         : base(logger)
     {
         _fileSystem = fileSystem;
         _buildValidationService = buildValidationService;
+        _compilationService = compilationService;
     }
 
     protected override async Task<Result<GetClassContextResponse>> HandleAsync(GetClassContextCommand request, CancellationToken cancellationToken)
@@ -173,12 +175,15 @@ public class GetClassContextHandler : BaseHandler<GetClassContextCommand, GetCla
 
     private async Task<ClassInfo> CreateClassInfo(ClassDeclarationSyntax classNode, string filePath, SyntaxTree syntaxTree)
     {
-        var compilation = CSharpCompilation.Create(
-            "TempAssembly",
-            syntaxTrees: new[] { syntaxTree },
-            references: GetBasicReferences());
+        // Use CompilationService to handle duplicate file names properly
+        var compilation = await _compilationService.CreateSingleFileCompilationAsync(filePath);
+        var semanticModel = _compilationService.GetSemanticModel(compilation, filePath);
 
-        var semanticModel = compilation.GetSemanticModel(syntaxTree);
+        if (semanticModel == null)
+        {
+            Logger.LogWarning("Could not create semantic model for file: {FilePath}", filePath);
+            throw new InvalidOperationException($"Could not create semantic model for file: {filePath}");
+        }
         var symbol = semanticModel.GetDeclaredSymbol(classNode);
 
         var linePosition = classNode.GetLocation().GetLineSpan().StartLinePosition;
@@ -225,12 +230,15 @@ public class GetClassContextHandler : BaseHandler<GetClassContextCommand, GetCla
 
     private async Task<ClassInfo> CreateClassInfoFromInterface(InterfaceDeclarationSyntax interfaceNode, string filePath, SyntaxTree syntaxTree)
     {
-        var compilation = CSharpCompilation.Create(
-            "TempAssembly",
-            syntaxTrees: new[] { syntaxTree },
-            references: GetBasicReferences());
+        // Use CompilationService to handle duplicate file names properly
+        var compilation = await _compilationService.CreateSingleFileCompilationAsync(filePath);
+        var semanticModel = _compilationService.GetSemanticModel(compilation, filePath);
 
-        var semanticModel = compilation.GetSemanticModel(syntaxTree);
+        if (semanticModel == null)
+        {
+            Logger.LogWarning("Could not create semantic model for file: {FilePath}", filePath);
+            throw new InvalidOperationException($"Could not create semantic model for file: {filePath}");
+        }
         var symbol = semanticModel.GetDeclaredSymbol(interfaceNode);
 
         var linePosition = interfaceNode.GetLocation().GetLineSpan().StartLinePosition;

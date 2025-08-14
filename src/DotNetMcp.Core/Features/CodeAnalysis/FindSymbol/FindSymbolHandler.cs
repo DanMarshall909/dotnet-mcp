@@ -17,12 +17,14 @@ public class FindSymbolHandler : BaseHandler<FindSymbolCommand, FindSymbolRespon
 {
     private readonly IFileSystem _fileSystem;
     private readonly BuildValidationService _buildValidationService;
+    private readonly CompilationService _compilationService;
 
-    public FindSymbolHandler(ILogger<FindSymbolHandler> logger, IFileSystem fileSystem, BuildValidationService buildValidationService) 
+    public FindSymbolHandler(ILogger<FindSymbolHandler> logger, IFileSystem fileSystem, BuildValidationService buildValidationService, CompilationService compilationService) 
         : base(logger)
     {
         _fileSystem = fileSystem;
         _buildValidationService = buildValidationService;
+        _compilationService = compilationService;
     }
 
     protected override async Task<Result<FindSymbolResponse>> HandleAsync(FindSymbolCommand request, CancellationToken cancellationToken)
@@ -125,16 +127,18 @@ public class FindSymbolHandler : BaseHandler<FindSymbolCommand, FindSymbolRespon
         try
         {
             var content = await _fileSystem.File.ReadAllTextAsync(filePath);
-            var syntaxTree = CSharpSyntaxTree.ParseText(content);
+            var syntaxTree = CSharpSyntaxTree.ParseText(content, path: filePath);
             var root = await syntaxTree.GetRootAsync();
 
-            // Create compilation for semantic analysis
-            var compilation = CSharpCompilation.Create(
-                "TempAssembly",
-                syntaxTrees: new[] { syntaxTree },
-                references: GetBasicReferences());
+            // Use CompilationService to handle duplicate file names properly
+            var compilation = await _compilationService.CreateSingleFileCompilationAsync(filePath);
+            var semanticModel = _compilationService.GetSemanticModel(compilation, filePath);
 
-            var semanticModel = compilation.GetSemanticModel(syntaxTree);
+            if (semanticModel == null)
+            {
+                Logger.LogWarning("Could not create semantic model for file: {FilePath}", filePath);
+                return symbols;
+            }
 
             // Find symbols based on type
             var foundNodes = new List<(SyntaxNode node, SymbolType type)>();
