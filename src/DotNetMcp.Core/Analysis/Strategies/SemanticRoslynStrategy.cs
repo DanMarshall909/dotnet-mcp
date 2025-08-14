@@ -140,7 +140,9 @@ public class SemanticRoslynStrategy : IAnalysisStrategy
         return Array.Empty<string>();
     }
 
+    #pragma warning disable CS1998 // Async method lacks 'await' operators - intentional placeholder for future semantic analysis
     private async Task<object> FindSymbolWithSemanticAnalysisAsync(AnalysisRequest request, Microsoft.CodeAnalysis.Compilation compilation)
+    #pragma warning restore CS1998
     {
         // This would integrate with existing semantic analysis logic
         // For now, return a placeholder that indicates semantic analysis was used
@@ -154,7 +156,9 @@ public class SemanticRoslynStrategy : IAnalysisStrategy
         };
     }
 
+    #pragma warning disable CS1998 // Async method lacks 'await' operators - intentional placeholder for future semantic analysis
     private async Task<object> FindSymbolUsagesWithSemanticAnalysisAsync(AnalysisRequest request, Microsoft.CodeAnalysis.Compilation compilation)
+    #pragma warning restore CS1998
     {
         // This would integrate with existing semantic analysis logic
         return new SemanticFindUsagesResult
@@ -167,7 +171,9 @@ public class SemanticRoslynStrategy : IAnalysisStrategy
         };
     }
 
+    #pragma warning disable CS1998 // Async method lacks 'await' operators - intentional placeholder for future semantic analysis
     private async Task<object> GetClassContextWithSemanticAnalysisAsync(AnalysisRequest request, Microsoft.CodeAnalysis.Compilation compilation)
+    #pragma warning restore CS1998
     {
         // This would integrate with existing semantic analysis logic
         return new SemanticClassContext
@@ -180,7 +186,9 @@ public class SemanticRoslynStrategy : IAnalysisStrategy
         };
     }
 
+    #pragma warning disable CS1998 // Async method lacks 'await' operators - intentional placeholder for future semantic analysis
     private async Task<object> AnalyzeProjectStructureWithSemanticAnalysisAsync(AnalysisRequest request, Microsoft.CodeAnalysis.Compilation compilation)
+    #pragma warning restore CS1998
     {
         // This would integrate with existing semantic analysis logic
         return new SemanticProjectStructure

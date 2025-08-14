@@ -1,7 +1,7 @@
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 using DotNetMcp.Core.Features.CodeAnalysis;
-using DotNetMcp.Core.VSA;
+using DotNetMcp.Core.Extensions;
 using FluentAssertions;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,7 +23,7 @@ public class Analyzing_code_quality : IDisposable
         
         var services = new ServiceCollection();
         services.AddSingleton<IFileSystem>(_fileSystem);
-        services.AddVerticalSliceArchitecture();
+        services.AddCoreServices();
         
         _serviceProvider = services.BuildServiceProvider();
         _mediator = _serviceProvider.GetRequiredService<IMediator>();
@@ -70,39 +70,39 @@ namespace TestProject.Services
         {
             // Long method with complex logic
             var connection = GetDatabaseConnection();
-            var sql = ""INSERT INTO Users (Name, Email, CreatedAt, UpdatedAt, IsActive, Department, Manager, PhoneNumber, Address, City, State, ZipCode, Country) VALUES (@name, @email, @created, @updated, @active, @dept, @manager, @phone, @address, @city, @state, @zip, @country)"";
+            var sql = \"INSERT INTO Users (Name, Email, CreatedAt, UpdatedAt, IsActive, Department, Manager, PhoneNumber, Address, City, State, ZipCode, Country) VALUES (@name, @email, @created, @updated, @active, @dept, @manager, @phone, @address, @city, @state, @zip, @country)\";
             var command = connection.CreateCommand();
             command.CommandText = sql;
-            command.Parameters.Add(""@name"", user.Name);
-            command.Parameters.Add(""@email"", user.Email);
-            command.Parameters.Add(""@created"", DateTime.Now);
-            command.Parameters.Add(""@updated"", DateTime.Now);
-            command.Parameters.Add(""@active"", true);
-            command.Parameters.Add(""@dept"", user.Department ?? """");
-            command.Parameters.Add(""@manager"", user.Manager ?? """");
-            command.Parameters.Add(""@phone"", user.PhoneNumber ?? """");
-            command.Parameters.Add(""@address"", user.Address ?? """");
-            command.Parameters.Add(""@city"", user.City ?? """");
-            command.Parameters.Add(""@state"", user.State ?? """");
-            command.Parameters.Add(""@zip"", user.ZipCode ?? """");
-            command.Parameters.Add(""@country"", user.Country ?? """");
+            command.Parameters.Add("@name", user.Name);
+            command.Parameters.Add("@email", user.Email);
+            command.Parameters.Add("@created", DateTime.Now);
+            command.Parameters.Add("@updated", DateTime.Now);
+            command.Parameters.Add("@active", true);
+            command.Parameters.Add("@dept", user.Department ?? "");
+            command.Parameters.Add("@manager", user.Manager ?? "");
+            command.Parameters.Add("@phone", user.PhoneNumber ?? "");
+            command.Parameters.Add("@address", user.Address ?? "");
+            command.Parameters.Add("@city", user.City ?? "");
+            command.Parameters.Add("@state", user.State ?? "");
+            command.Parameters.Add("@zip", user.ZipCode ?? "");
+            command.Parameters.Add("@country", user.Country ?? "");
             command.ExecuteNonQuery();
         }
         
         // Email operations
         public void SendWelcomeEmail(User user)
         {
-            var emailBody = $""Welcome {user.Name}! Your account has been created successfully."";
-            var request = new HttpRequestMessage(HttpMethod.Post, ""https://api.email.com/send"");
-            request.Content = new StringContent($""{{\"\"to\"\":\"\"{user.Email}\"",\"\"subject\"\":\"\"Welcome\"",\"\"body\"\":\"\"{emailBody}\"\"}}"", Encoding.UTF8, ""application/json"");
+            var emailBody = $\"Welcome {user.Name}! Your account has been created successfully.\";
+            var request = new HttpRequestMessage(HttpMethod.Post, \"https://api.email.com/send\");
+            request.Content = new StringContent($\"{{\\\"to\\\":\\\"{user.Email}\\\",\\\"subject\\\":\\\"Welcome\\\",\\\"body\\\":\\\"{emailBody}\\\"}}\", Encoding.UTF8, \"application/json\");
             _httpClient.Send(request);
         }
         
         // Logging operations
         public void LogUserCreation(User user)
         {
-            Console.WriteLine($""User created: {user.Name} - {user.Email}"");
-            _cache.Add($""{user.Name}:{user.Email}:{DateTime.Now}"");
+            Console.WriteLine($\"User created: {user.Name} - {user.Email}\");
+            _cache.Add($\"{user.Name}:{user.Email}:{DateTime.Now}\");
         }
         
         // Statistics operations
@@ -116,16 +116,16 @@ namespace TestProject.Services
                 {
                     if (totalUsers > 10000)
                     {
-                        Console.WriteLine(""We have over 10k users!"");
+                        Console.WriteLine(\"We have over 10k users!\");
                     }
                     else
                     {
-                        Console.WriteLine(""We have over 5k users!"");
+                        Console.WriteLine(\"We have over 5k users!\");
                     }
                 }
                 else
                 {
-                    Console.WriteLine(""We have over 1k users!"");
+                    Console.WriteLine(\"We have over 1k users!\");
                 }
             }
         }
@@ -133,7 +133,7 @@ namespace TestProject.Services
         // Magic numbers and hardcoded values
         public bool IsValidEmail(string email)
         {
-            return email.Length > 5 && email.Contains(""@"") && email.Length < 100;
+            return email.Length > 5 && email.Contains(\"@\") && email.Length < 100;
         }
         
         // Unused method

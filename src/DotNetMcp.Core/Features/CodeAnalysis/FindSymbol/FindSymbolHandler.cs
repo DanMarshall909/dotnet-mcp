@@ -202,7 +202,9 @@ public class FindSymbolHandler : BaseHandler<FindSymbolCommand, FindSymbolRespon
         return symbols;
     }
 
+    #pragma warning disable CS1998 // Async method lacks 'await' operators - intentional for future extensibility
     private async Task<SymbolInfo?> CreateSymbolInfo(SyntaxNode node, SymbolType symbolType, string filePath, SemanticModel semanticModel, bool includeImplementations)
+    #pragma warning restore CS1998
     {
         try
         {

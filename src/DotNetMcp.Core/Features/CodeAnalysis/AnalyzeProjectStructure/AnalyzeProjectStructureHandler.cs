@@ -131,6 +131,7 @@ public class AnalyzeProjectStructureHandler : BaseHandler<AnalyzeProjectStructur
             var projectReferences = doc.Root?.Descendants("ProjectReference")
                 .Select(pr => pr.Attribute("Include")?.Value)
                 .Where(pr => !string.IsNullOrEmpty(pr))
+                .Cast<string>() // Cast to non-nullable after null filter
                 .ToArray() ?? Array.Empty<string>();
 
             var lastModified = _fileSystem.File.GetLastWriteTime(projectFilePath);
@@ -296,7 +297,9 @@ public class AnalyzeProjectStructureHandler : BaseHandler<AnalyzeProjectStructur
         };
     }
 
+    #pragma warning disable CS1998 // Async method lacks 'await' operators - intentional for future extensibility  
     private async Task<ArchitectureAnalysis> AnalyzeArchitecture(NamespaceInfo[] namespaces, CodeAnalysis.FileInfo[] files, int maxDepth)
+    #pragma warning restore CS1998
     {
         // Identify layers based on common patterns
         var layers = IdentifyLayers(namespaces);

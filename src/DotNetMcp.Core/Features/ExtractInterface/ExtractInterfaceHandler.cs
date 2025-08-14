@@ -63,7 +63,7 @@ public class ExtractInterfaceHandler : BaseHandler<ExtractInterfaceCommand, Extr
                     ExtractedMembers = success.ExtractedMembers,
                     InterfaceName = success.InterfaceName
                 }),
-                (error, exception) => Result<ExtractInterfaceResponse>.Failure(error, exception));
+                (error, exception) => Result<ExtractInterfaceResponse>.Failure(error, exception ?? new InvalidOperationException(error)));
         }
         catch (Exception ex)
         {

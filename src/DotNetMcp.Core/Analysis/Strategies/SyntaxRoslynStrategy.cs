@@ -424,7 +424,9 @@ public class SyntaxRoslynStrategy : IAnalysisStrategy
         };
     }
 
+    #pragma warning disable CS1998 // Async method lacks 'await' operators - intentional for strategy pattern consistency
     private async Task<string[]> GetRelevantFilesAsync(AnalysisRequest request)
+    #pragma warning restore CS1998
     {
         if (request.FilePaths.Any())
             return request.FilePaths.Where(f => f.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)).ToArray();

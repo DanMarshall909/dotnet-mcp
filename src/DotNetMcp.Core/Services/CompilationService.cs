@@ -176,7 +176,9 @@ public class CompilationService
     /// <summary>
     /// Finds the project file (.csproj) that contains the given source file
     /// </summary>
+    #pragma warning disable CS1998 // Async method lacks 'await' operators - intentional for future extensibility
     private async Task<string?> FindProjectPathAsync(string sourceFilePath)
+    #pragma warning restore CS1998
     {
         var directory = _fileSystem.Path.GetDirectoryName(sourceFilePath);
         

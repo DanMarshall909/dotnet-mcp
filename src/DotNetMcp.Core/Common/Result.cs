@@ -87,10 +87,10 @@ public sealed record FailureResult<T>(string ErrorMessage, Exception? InnerExcep
         => await onFailure(ErrorMessage, InnerException);
     
     public override Result<TNext> Map<TNext>(Func<T, TNext> mapper)
-        => Result<TNext>.Failure(ErrorMessage, InnerException);
+        => Result<TNext>.Failure(ErrorMessage, InnerException ?? new InvalidOperationException(ErrorMessage));
     
     public override Result<TNext> Bind<TNext>(Func<T, Result<TNext>> binder)
-        => Result<TNext>.Failure(ErrorMessage, InnerException);
+        => Result<TNext>.Failure(ErrorMessage, InnerException ?? new InvalidOperationException(ErrorMessage));
 }
 
 public sealed record DetailedFailureResult<T>(AnalysisError ErrorDetails, AnalysisContext? ErrorContext = null) : Result<T>

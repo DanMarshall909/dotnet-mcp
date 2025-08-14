@@ -14,7 +14,7 @@ public class AutoFixHandler : BaseHandler<AutoFixCommand, AutoFixResponse>
     {
     }
 
-    protected override async Task<Result<AutoFixResponse>> HandleAsync(AutoFixCommand request, CancellationToken cancellationToken)
+    protected override Task<Result<AutoFixResponse>> HandleAsync(AutoFixCommand request, CancellationToken cancellationToken)
     {
         var startTime = DateTime.UtcNow;
         var appliedFixes = new List<AppliedFix>();
@@ -116,12 +116,12 @@ public class AutoFixHandler : BaseHandler<AutoFixCommand, AutoFixResponse>
             Logger.LogInformation("Auto-fix completed: {AppliedCount} fixes applied, {SuggestedCount} suggested", 
                 appliedFixes.Count, suggestedFixes.Count);
 
-            return Result<AutoFixResponse>.Success(response);
+            return Task.FromResult(Result<AutoFixResponse>.Success(response));
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Auto-fix operation failed");
-            return Result<AutoFixResponse>.Failure($"Auto-fix failed: {ex.Message}", ex);
+            return Task.FromResult(Result<AutoFixResponse>.Failure($"Auto-fix failed: {ex.Message}", ex));
         }
     }
 
