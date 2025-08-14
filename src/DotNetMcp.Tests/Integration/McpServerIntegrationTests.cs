@@ -24,11 +24,15 @@ public class McpServerIntegrationTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton<ILogger<McpServer>>(NullLogger<McpServer>.Instance);
         services.AddSingleton<ILogger<ExtractMethodTool>>(NullLogger<ExtractMethodTool>.Instance);
+        services.AddSingleton<ILogger<ExtractMethodCompactTool>>(NullLogger<ExtractMethodCompactTool>.Instance);
         services.AddSingleton<ILogger<RenameSymbolTool>>(NullLogger<RenameSymbolTool>.Instance);
+        services.AddSingleton<ILogger<RenameSymbolMultiFileTool>>(NullLogger<RenameSymbolMultiFileTool>.Instance);
         services.AddSingleton<ILogger<ExtractInterfaceTool>>(NullLogger<ExtractInterfaceTool>.Instance);
         services.AddSingleton<ILogger<IntroduceVariableTool>>(NullLogger<IntroduceVariableTool>.Instance);
         services.AddSingleton<ExtractMethodTool>();
+        services.AddSingleton<ExtractMethodCompactTool>();
         services.AddSingleton<RenameSymbolTool>();
+        services.AddSingleton<RenameSymbolMultiFileTool>();
         services.AddSingleton<ExtractInterfaceTool>();
         services.AddSingleton<IntroduceVariableTool>();
 
@@ -85,11 +89,13 @@ public class McpServerIntegrationTests : IDisposable
         Assert.NotNull(response);
         var tools = response["result"]?["tools"]?.AsArray();
         Assert.NotNull(tools);
-        Assert.Equal(4, tools.Count);
+        Assert.Equal(6, tools.Count);
 
         var toolNames = tools.Select(t => t?["name"]?.GetValue<string>()).ToArray();
         Assert.Contains("extract_method", toolNames);
+        Assert.Contains("extract_method_compact", toolNames);
         Assert.Contains("rename_symbol", toolNames);
+        Assert.Contains("rename_symbol_multi_file", toolNames);
         Assert.Contains("extract_interface", toolNames);
         Assert.Contains("introduce_variable", toolNames);
     }

@@ -245,8 +245,9 @@ public class ExtractMethodRefactorer : RefactoringBase
         
         foreach (var variable in variables.Where(v => v.IsParameter))
         {
+            var typeSyntax = CreateTypeSyntax(variable.Type);
             var parameter = SyntaxFactory.Parameter(SyntaxFactory.Identifier(variable.Name))
-                .WithType(SyntaxFactory.IdentifierName(variable.Type.Name));
+                .WithType(typeSyntax.WithTrailingTrivia(SyntaxFactory.Space));
             parameters.Add(parameter);
         }
 
@@ -367,8 +368,11 @@ public class ExtractMethodRefactorer : RefactoringBase
         var body = SyntaxFactory.Block(statement);
 
         return SyntaxFactory.MethodDeclaration(returnType, methodName)
-            .WithModifiers(SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.PrivateKeyword)))
-            .WithParameterList(parameterList)
+            .WithModifiers(SyntaxFactory.TokenList(
+                SyntaxFactory.Token(SyntaxKind.PrivateKeyword)
+                    .WithTrailingTrivia(SyntaxFactory.Space)))
+            .WithReturnType(returnType.WithTrailingTrivia(SyntaxFactory.Space))
+            .WithParameterList(parameterList.WithTrailingTrivia(SyntaxFactory.Space))
             .WithBody(body)
             .WithLeadingTrivia(
                 SyntaxFactory.CarriageReturnLineFeed,

@@ -1,6 +1,8 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using DotNetMcp.Core.Services;
+using DotNetMcp.Core.Models;
 
 namespace DotNetMcp.Core.Refactoring;
 
@@ -43,6 +45,53 @@ public class RenameSymbolRefactorer : RefactoringBase
             changes,
             symbolType,
             Array.Empty<string>());
+    }
+
+    public async Task<CompactRefactoringResult> RenameSymbolMultiFileAsync(
+        MultiFileRefactoringEngine engine, 
+        string symbolName, 
+        string newName, 
+        string? targetFilePath = null)
+    {
+        try
+        {
+            var deltas = await engine.RenameSymbolAcrossFilesAsync(symbolName, newName, targetFilePath);
+            
+            if (!deltas.Any())
+            {
+                return new CompactRefactoringResult(
+                    false,
+                    new List<RefactoringDelta>(),
+                    $"Symbol '{symbolName}' not found");
+            }
+
+            var totalChanges = deltas.Sum(d => d.Changes.Count);
+            var affectedFiles = deltas.Select(d => d.FilePath).Distinct().Count();
+            
+            var summary = new RefactoringSummary(
+                $"Rename '{symbolName}' to '{newName}'",
+                "void", // Not applicable for rename
+                new[] { symbolName, newName },
+                EstimateTokenSavings(deltas));
+
+            return new CompactRefactoringResult(
+                true,
+                deltas,
+                Summary: summary);
+        }
+        catch (Exception ex)
+        {
+            return new CompactRefactoringResult(
+                false,
+                new List<RefactoringDelta>(),
+                ex.Message);
+        }
+    }
+
+    private static int EstimateTokenSavings(List<RefactoringDelta> deltas)
+    {
+        // For rename operations, we don't really save tokens, but we can report efficiency
+        return deltas.Sum(d => d.Changes.Count); // Return number of changes made
     }
 
     private static string DetermineSymbolType(SyntaxNode root, string originalName, string symbolKind)

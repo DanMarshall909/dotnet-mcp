@@ -170,14 +170,18 @@ namespace TestNamespace
         var result = await _refactorer.ExtractMethodAsync(code, "return a + b;", "AddNumbers");
 
         // Assert
-        Assert.Contains("\"success\":true", result.ModifiedCode);
+        Assert.True(result.ModifiedCode.Length > 0, "ModifiedCode should not be empty");
         Assert.Contains("int AddNumbers(", result.ExtractedMethod);
+        Assert.Equal("int", result.ReturnType);
         
         // Verify the extracted method has proper parameters
         Assert.Contains("int a", result.ExtractedMethod);
         Assert.Contains("int b", result.ExtractedMethod);
         
-        // Verify the method call has proper arguments
+        // Verify the method call was inserted in the modified code
         Assert.Contains("AddNumbers(a, b)", result.ModifiedCode);
+        
+        // Verify the original return statement was replaced
+        Assert.DoesNotContain("return a + b;", result.ModifiedCode);
     }
 }

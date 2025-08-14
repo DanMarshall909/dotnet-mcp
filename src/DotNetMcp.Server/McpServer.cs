@@ -11,6 +11,7 @@ public class McpServer(IServiceProvider services)
     private readonly ExtractMethodTool _extractMethod = services.GetRequiredService<ExtractMethodTool>();
     private readonly ExtractMethodCompactTool _extractMethodCompact = services.GetRequiredService<ExtractMethodCompactTool>();
     private readonly RenameSymbolTool _renameSymbol = services.GetRequiredService<RenameSymbolTool>();
+    private readonly RenameSymbolMultiFileTool _renameSymbolMultiFile = services.GetRequiredService<RenameSymbolMultiFileTool>();
     private readonly ExtractInterfaceTool _extractInterface = services.GetRequiredService<ExtractInterfaceTool>();
     private readonly IntroduceVariableTool _introduceVariable = services.GetRequiredService<IntroduceVariableTool>();
 
@@ -72,6 +73,7 @@ public class McpServer(IServiceProvider services)
                     CreateTool("extract_method", "Extract selected code into a new method"),
                     CreateTool("extract_method_compact", "Extract method with delta output for token efficiency"),
                     CreateTool("rename_symbol", "Rename a symbol throughout the codebase"),
+                    CreateTool("rename_symbol_multi_file", "Rename a symbol across multiple files in a solution"),
                     CreateTool("extract_interface", "Extract an interface from a class"),
                     CreateTool("introduce_variable", "Introduce a variable for an expression")
                 }
@@ -109,6 +111,11 @@ public class McpServer(IServiceProvider services)
                     arguments["oldName"]?.GetValue<string>() ?? "",
                     arguments["newName"]?.GetValue<string>() ?? "",
                     arguments["symbolType"]?.GetValue<string>() ?? "auto"),
+                "rename_symbol_multi_file" => await _renameSymbolMultiFile.RenameSymbolMultiFile(
+                    arguments["solutionPath"]?.GetValue<string>() ?? "",
+                    arguments["symbolName"]?.GetValue<string>() ?? "",
+                    arguments["newName"]?.GetValue<string>() ?? "",
+                    arguments["targetFilePath"]?.GetValue<string>()),
                 "extract_interface" => await _extractInterface.ExtractInterface(
                     arguments["filePath"]?.GetValue<string>() ?? "",
                     arguments["className"]?.GetValue<string>() ?? "",

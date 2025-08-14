@@ -15,6 +15,7 @@ builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogL
 builder.Services.AddSingleton<ExtractMethodTool>();
 builder.Services.AddSingleton<ExtractMethodCompactTool>();
 builder.Services.AddSingleton<RenameSymbolTool>();
+builder.Services.AddSingleton<RenameSymbolMultiFileTool>();
 builder.Services.AddSingleton<ExtractInterfaceTool>();
 builder.Services.AddSingleton<IntroduceVariableTool>();
 
