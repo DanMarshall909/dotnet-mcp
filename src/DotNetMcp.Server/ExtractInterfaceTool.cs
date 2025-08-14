@@ -19,18 +19,22 @@ public class ExtractInterfaceTool(ILogger<ExtractInterfaceTool> logger)
 
         try
         {
-            var extractor = new ExtractInterfaceRefactorer();
+            var sourceCode = await File.ReadAllTextAsync(filePath);
+            var extractor = new SimpleExtractInterfaceRefactorer();
             var members = memberNames?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [];
-            var result = await extractor.ExtractInterfaceAsync(filePath, className, interfaceName, members);
+            var result = await extractor.ExtractInterfaceAsync(sourceCode, className, interfaceName, members);
+
+            // Write the modified content back to the file
+            await File.WriteAllTextAsync(filePath, result.ModifiedCode);
 
             return JsonSerializer.Serialize(new
             {
                 success = true,
-                interfaceContent = result.InterfaceContent,
-                modifiedClassContent = result.ModifiedClassContent,
-                interfaceFilePath = result.InterfaceFilePath,
+                interfaceContent = result.ExtractedInterface,
+                modifiedClassContent = result.ModifiedCode,
+                interfaceFilePath = Path.ChangeExtension(filePath, $".{interfaceName}.cs"),
                 extractedMembers = result.ExtractedMembers,
-                affectedFiles = result.AffectedFiles
+                affectedFiles = new[] { filePath }
             });
         }
         catch (Exception ex)

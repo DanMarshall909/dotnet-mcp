@@ -17,15 +17,19 @@ public class ExtractMethodTool(ILogger<ExtractMethodTool> logger)
 
         try
         {
-            var extractor = new ExtractMethodRefactorer();
-            var result = await extractor.ExtractMethodAsync(filePath, selectedCode, methodName);
+            var sourceCode = await File.ReadAllTextAsync(filePath);
+            var extractor = new SimpleExtractMethodRefactorer();
+            var result = await extractor.ExtractMethodAsync(sourceCode, selectedCode, methodName);
+
+            // Write the modified content back to the file
+            await File.WriteAllTextAsync(filePath, result.ModifiedCode);
 
             return JsonSerializer.Serialize(new
             {
                 success = true,
-                modifiedContent = result.ModifiedContent,
-                extractedMethodSignature = result.ExtractedMethodSignature,
-                parameters = result.Parameters,
+                modifiedContent = result.ModifiedCode,
+                extractedMethodSignature = result.ExtractedMethod,
+                parameters = result.UsedVariables,
                 returnType = result.ReturnType,
                 affectedFiles = new[] { filePath }
             });

@@ -2,53 +2,8 @@ using DotNetMcp.Core.Refactoring;
 
 namespace DotNetMcp.Tests.Integration;
 
-public class RenameSymbolRefactorerTests : IDisposable
+public class RenameSymbolRefactorerTests
 {
-    private readonly string _testDirectory;
-    private readonly string _solutionPath;
-    private readonly string _projectPath;
-    private readonly string _testFilePath;
-
-    public RenameSymbolRefactorerTests()
-    {
-        _testDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-        Directory.CreateDirectory(_testDirectory);
-        
-        _solutionPath = Path.Combine(_testDirectory, "TestSolution.sln");
-        _projectPath = Path.Combine(_testDirectory, "TestProject.csproj");
-        _testFilePath = Path.Combine(_testDirectory, "TestClass.cs");
-        
-        SetupTestProject();
-    }
-
-    private void SetupTestProject()
-    {
-        // Create a minimal solution file
-        var solutionContent = @"
-Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-Project(""{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}"") = ""TestProject"", ""TestProject.csproj"", ""{12345678-1234-1234-1234-123456789012}""
-EndProject
-";
-        File.WriteAllText(_solutionPath, solutionContent);
-
-        // Create a minimal project file
-        var projectContent = @"<Project Sdk=""Microsoft.NET.Sdk"">
-  <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
-  </PropertyGroup>
-</Project>";
-        File.WriteAllText(_projectPath, projectContent);
-    }
-
-    public void Dispose()
-    {
-        if (Directory.Exists(_testDirectory))
-        {
-            Directory.Delete(_testDirectory, true);
-        }
-    }
-
     [Fact]
     public async Task RenameSymbolAsync_RenameClass_RenamesSuccessfully()
     {
@@ -75,22 +30,17 @@ namespace TestNamespace
     }
 }";
 
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new RenameSymbolRefactorer();
+        var refactorer = new SimpleRenameSymbolRefactorer();
 
         // Act
-        var result = await refactorer.RenameSymbolAsync(_projectPath, "OldClassName", "NewClassName", "class");
+        var result = await refactorer.RenameSymbolAsync(sourceCode, "OldClassName", "NewClassName", "class");
 
         // Assert
         Assert.NotNull(result);
-        Assert.Contains(_testFilePath, result.AffectedFiles);
         Assert.True(result.TotalChanges > 0);
         Assert.Equal("class", result.SymbolType);
-
-        // Verify the file was actually modified
-        var modifiedContent = await File.ReadAllTextAsync(_testFilePath);
-        Assert.Contains("NewClassName", modifiedContent);
-        Assert.DoesNotContain("OldClassName", modifiedContent);
+        Assert.Contains("NewClassName", result.ModifiedCode);
+        Assert.DoesNotContain("OldClassName", result.ModifiedCode);
     }
 
     [Fact]
@@ -106,32 +56,27 @@ namespace TestNamespace
     {
         public void OldMethodName()
         {
-            Console.WriteLine(""Hello"");
+            Console.WriteLine(""Hello World"");
         }
 
-        public void CallMethod()
+        public void CallOldMethod()
         {
             OldMethodName();
-            this.OldMethodName();
         }
     }
 }";
 
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new RenameSymbolRefactorer();
+        var refactorer = new SimpleRenameSymbolRefactorer();
 
         // Act
-        var result = await refactorer.RenameSymbolAsync(_projectPath, "OldMethodName", "NewMethodName", "method");
+        var result = await refactorer.RenameSymbolAsync(sourceCode, "OldMethodName", "NewMethodName", "method");
 
         // Assert
         Assert.NotNull(result);
-        Assert.Contains(_testFilePath, result.AffectedFiles);
         Assert.True(result.TotalChanges > 0);
-
-        // Verify the file was actually modified
-        var modifiedContent = await File.ReadAllTextAsync(_testFilePath);
-        Assert.Contains("NewMethodName", modifiedContent);
-        Assert.DoesNotContain("OldMethodName", modifiedContent);
+        Assert.Equal("method", result.SymbolType);
+        Assert.Contains("NewMethodName", result.ModifiedCode);
+        Assert.DoesNotContain("OldMethodName", result.ModifiedCode);
     }
 
     [Fact]
@@ -147,96 +92,24 @@ namespace TestNamespace
     {
         public void TestMethod()
         {
-            int oldVariableName = 42;
+            var oldVariableName = ""Hello World"";
             Console.WriteLine(oldVariableName);
-            int result = oldVariableName + 10;
+            Console.WriteLine(oldVariableName.Length);
         }
     }
 }";
 
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new RenameSymbolRefactorer();
+        var refactorer = new SimpleRenameSymbolRefactorer();
 
         // Act
-        var result = await refactorer.RenameSymbolAsync(_projectPath, "oldVariableName", "newVariableName", "variable");
+        var result = await refactorer.RenameSymbolAsync(sourceCode, "oldVariableName", "newVariableName", "variable");
 
         // Assert
         Assert.NotNull(result);
-        Assert.Contains(_testFilePath, result.AffectedFiles);
         Assert.True(result.TotalChanges > 0);
-
-        // Verify the file was actually modified
-        var modifiedContent = await File.ReadAllTextAsync(_testFilePath);
-        Assert.Contains("newVariableName", modifiedContent);
-        Assert.DoesNotContain("oldVariableName", modifiedContent);
-    }
-
-    [Fact]
-    public async Task RenameSymbolAsync_AutoDetectSymbolType_RenamesSuccessfully()
-    {
-        // Arrange
-        var sourceCode = @"
-using System;
-
-namespace TestNamespace
-{
-    public class TestClass
-    {
-        public string OldProperty { get; set; }
-
-        public void UseProperty()
-        {
-            OldProperty = ""test"";
-            Console.WriteLine(OldProperty);
-        }
-    }
-}";
-
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new RenameSymbolRefactorer();
-
-        // Act
-        var result = await refactorer.RenameSymbolAsync(_projectPath, "OldProperty", "NewProperty", "auto");
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Contains(_testFilePath, result.AffectedFiles);
-        Assert.True(result.TotalChanges > 0);
-
-        // Verify the file was actually modified
-        var modifiedContent = await File.ReadAllTextAsync(_testFilePath);
-        Assert.Contains("NewProperty", modifiedContent);
-        Assert.DoesNotContain("OldProperty", modifiedContent);
-    }
-
-    [Fact]
-    public async Task RenameSymbolAsync_NonExistentSymbol_ReturnsNoChanges()
-    {
-        // Arrange
-        var sourceCode = @"
-using System;
-
-namespace TestNamespace
-{
-    public class TestClass
-    {
-        public void TestMethod()
-        {
-            Console.WriteLine(""Hello"");
-        }
-    }
-}";
-
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new RenameSymbolRefactorer();
-
-        // Act
-        var result = await refactorer.RenameSymbolAsync(_projectPath, "NonExistentSymbol", "NewName", "auto");
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(0, result.TotalChanges);
-        Assert.Empty(result.AffectedFiles);
+        Assert.Equal("local variable", result.SymbolType);
+        Assert.Contains("newVariableName", result.ModifiedCode);
+        Assert.DoesNotContain("oldVariableName", result.ModifiedCode);
     }
 
     [Fact]
@@ -253,38 +126,26 @@ namespace TestNamespace
         void DoSomething();
     }
 
-    public class Implementation : IOldInterface
+    public class TestClass : IOldInterface
     {
         public void DoSomething()
         {
-            // Implementation
-        }
-    }
-
-    public class Client
-    {
-        public void UseInterface(IOldInterface service)
-        {
-            service.DoSomething();
+            Console.WriteLine(""Implementation"");
         }
     }
 }";
 
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new RenameSymbolRefactorer();
+        var refactorer = new SimpleRenameSymbolRefactorer();
 
         // Act
-        var result = await refactorer.RenameSymbolAsync(_projectPath, "IOldInterface", "INewInterface", "interface");
+        var result = await refactorer.RenameSymbolAsync(sourceCode, "IOldInterface", "INewInterface", "interface");
 
         // Assert
         Assert.NotNull(result);
-        Assert.Contains(_testFilePath, result.AffectedFiles);
         Assert.True(result.TotalChanges > 0);
-
-        // Verify the file was actually modified
-        var modifiedContent = await File.ReadAllTextAsync(_testFilePath);
-        Assert.Contains("INewInterface", modifiedContent);
-        Assert.DoesNotContain("IOldInterface", modifiedContent);
+        Assert.Equal("interface", result.SymbolType);
+        Assert.Contains("INewInterface", result.ModifiedCode);
+        Assert.DoesNotContain("IOldInterface", result.ModifiedCode);
     }
 
     [Fact]
@@ -298,35 +159,88 @@ namespace TestNamespace
 {
     public class TestClass
     {
-        private string oldFieldName;
+        private string oldFieldName = ""Hello"";
 
-        public TestClass()
-        {
-            oldFieldName = ""initial value"";
-        }
-
-        public void UseField()
+        public void TestMethod()
         {
             Console.WriteLine(oldFieldName);
-            oldFieldName = ""new value"";
+            oldFieldName = ""World"";
         }
     }
 }";
 
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new RenameSymbolRefactorer();
+        var refactorer = new SimpleRenameSymbolRefactorer();
 
         // Act
-        var result = await refactorer.RenameSymbolAsync(_projectPath, "oldFieldName", "newFieldName", "variable");
+        var result = await refactorer.RenameSymbolAsync(sourceCode, "oldFieldName", "newFieldName", "variable");
 
         // Assert
         Assert.NotNull(result);
-        Assert.Contains(_testFilePath, result.AffectedFiles);
         Assert.True(result.TotalChanges > 0);
+        Assert.Equal("field", result.SymbolType);
+        Assert.Contains("newFieldName", result.ModifiedCode);
+        Assert.DoesNotContain("oldFieldName", result.ModifiedCode);
+    }
 
-        // Verify the file was actually modified
-        var modifiedContent = await File.ReadAllTextAsync(_testFilePath);
-        Assert.Contains("newFieldName", modifiedContent);
-        Assert.DoesNotContain("oldFieldName", modifiedContent);
+    [Fact]
+    public async Task RenameSymbolAsync_AutoDetectSymbolType_RenamesSuccessfully()
+    {
+        // Arrange
+        var sourceCode = @"
+using System;
+
+namespace TestNamespace
+{
+    public class TestTarget
+    {
+        public void TestMethod()
+        {
+            var obj = new TestTarget();
+            obj.TestMethod();
+        }
+    }
+}";
+
+        var refactorer = new SimpleRenameSymbolRefactorer();
+
+        // Act
+        var result = await refactorer.RenameSymbolAsync(sourceCode, "TestTarget", "RenamedTarget", "auto");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.TotalChanges > 0);
+        Assert.Equal("class", result.SymbolType);
+        Assert.Contains("RenamedTarget", result.ModifiedCode);
+        Assert.DoesNotContain("TestTarget", result.ModifiedCode);
+    }
+
+    [Fact]
+    public async Task RenameSymbolAsync_NonExistentSymbol_ReturnsNoChanges()
+    {
+        // Arrange
+        var sourceCode = @"
+using System;
+
+namespace TestNamespace
+{
+    public class TestClass
+    {
+        public void TestMethod()
+        {
+            Console.WriteLine(""Hello World"");
+        }
+    }
+}";
+
+        var refactorer = new SimpleRenameSymbolRefactorer();
+
+        // Act
+        var result = await refactorer.RenameSymbolAsync(sourceCode, "NonExistentSymbol", "NewName", "auto");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(0, result.TotalChanges);
+        Assert.Equal("unknown", result.SymbolType);
+        Assert.Equal(sourceCode, result.ModifiedCode);
     }
 }

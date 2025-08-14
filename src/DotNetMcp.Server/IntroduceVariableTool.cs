@@ -20,13 +20,17 @@ public class IntroduceVariableTool(ILogger<IntroduceVariableTool> logger)
 
         try
         {
-            var introducer = new IntroduceVariableRefactorer();
-            var result = await introducer.IntroduceVariableAsync(filePath, expression, variableName, scope, replaceAll);
+            var sourceCode = await File.ReadAllTextAsync(filePath);
+            var introducer = new SimpleIntroduceVariableRefactorer();
+            var result = await introducer.IntroduceVariableAsync(sourceCode, expression, variableName, scope, replaceAll);
+
+            // Write the modified content back to the file
+            await File.WriteAllTextAsync(filePath, result.ModifiedCode);
 
             return JsonSerializer.Serialize(new
             {
                 success = true,
-                modifiedContent = result.ModifiedContent,
+                modifiedContent = result.ModifiedCode,
                 variableDeclaration = result.VariableDeclaration,
                 variableType = result.VariableType,
                 scope = result.Scope,

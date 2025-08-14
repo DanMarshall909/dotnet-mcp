@@ -19,13 +19,17 @@ public class RenameSymbolTool(ILogger<RenameSymbolTool> logger)
 
         try
         {
-            var renamer = new RenameSymbolRefactorer();
-            var result = await renamer.RenameSymbolAsync(solutionPath, originalName, newName, symbolKind);
+            var sourceCode = await File.ReadAllTextAsync(solutionPath);
+            var renamer = new SimpleRenameSymbolRefactorer();
+            var result = await renamer.RenameSymbolAsync(sourceCode, originalName, newName, symbolKind);
+
+            // Write the modified content back to the file
+            await File.WriteAllTextAsync(solutionPath, result.ModifiedCode);
 
             return JsonSerializer.Serialize(new
             {
                 success = true,
-                affectedFiles = result.AffectedFiles,
+                affectedFiles = new[] { solutionPath },
                 totalChanges = result.TotalChanges,
                 symbolType = result.SymbolType,
                 conflicts = result.Conflicts

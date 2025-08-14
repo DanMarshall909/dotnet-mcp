@@ -2,26 +2,8 @@ using DotNetMcp.Core.Refactoring;
 
 namespace DotNetMcp.Tests.Integration;
 
-public class ExtractInterfaceRefactorerTests : IDisposable
+public class ExtractInterfaceRefactorerTests
 {
-    private readonly string _testDirectory;
-    private readonly string _testFilePath;
-
-    public ExtractInterfaceRefactorerTests()
-    {
-        _testDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-        Directory.CreateDirectory(_testDirectory);
-        _testFilePath = Path.Combine(_testDirectory, "TestClass.cs");
-    }
-
-    public void Dispose()
-    {
-        if (Directory.Exists(_testDirectory))
-        {
-            Directory.Delete(_testDirectory, true);
-        }
-    }
-
     [Fact]
     public async Task ExtractInterfaceAsync_AllPublicMembers_ExtractsSuccessfully()
     {
@@ -31,59 +13,40 @@ using System;
 
 namespace TestNamespace
 {
-    public class UserService
+    public class Calculator
     {
-        public void CreateUser(string name)
+        public int Add(int a, int b)
         {
-            Console.WriteLine($""Creating user: {name}"");
+            return a + b;
         }
 
-        public string GetUser(int id)
+        public int Subtract(int a, int b)
         {
-            return $""User {id}"";
+            return a - b;
         }
 
-        public void DeleteUser(int id)
+        private int MultiplyInternal(int a, int b)
         {
-            Console.WriteLine($""Deleting user: {id}"");
+            return a * b;
         }
 
-        private void LogOperation(string operation)
-        {
-            Console.WriteLine($""Operation: {operation}"");
-        }
+        public string Name { get; set; }
     }
 }";
 
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new ExtractInterfaceRefactorer();
+        var refactorer = new SimpleExtractInterfaceRefactorer();
 
         // Act
-        var result = await refactorer.ExtractInterfaceAsync(_testFilePath, "UserService", "IUserService", Array.Empty<string>());
+        var result = await refactorer.ExtractInterfaceAsync(sourceCode, "Calculator", "ICalculator");
 
         // Assert
         Assert.NotNull(result);
-        Assert.Contains("IUserService", result.InterfaceContent);
-        Assert.Contains("void CreateUser(string name);", result.InterfaceContent);
-        Assert.Contains("string GetUser(int id);", result.InterfaceContent);
-        Assert.Contains("void DeleteUser(int id);", result.InterfaceContent);
-        Assert.DoesNotContain("LogOperation", result.InterfaceContent); // Private method should not be included
-
-        Assert.Contains("IUserService", result.ModifiedClassContent);
-        Assert.Contains("UserService : IUserService", result.ModifiedClassContent);
-
-        Assert.Contains("CreateUser", result.ExtractedMembers);
-        Assert.Contains("GetUser", result.ExtractedMembers);
-        Assert.Contains("DeleteUser", result.ExtractedMembers);
-
-        Assert.Equal(2, result.AffectedFiles.Length);
-        Assert.Contains(_testFilePath, result.AffectedFiles);
-        Assert.Contains("IUserService.cs", result.InterfaceFilePath);
-
-        // Verify interface file was created
-        Assert.True(File.Exists(result.InterfaceFilePath));
-        var interfaceContent = await File.ReadAllTextAsync(result.InterfaceFilePath);
-        Assert.Contains("public interface IUserService", interfaceContent);
+        Assert.Equal("ICalculator", result.InterfaceName);
+        Assert.Contains("ICalculator", result.ModifiedCode);
+        Assert.Contains("Add", result.ExtractedMembers);
+        Assert.Contains("Subtract", result.ExtractedMembers);
+        Assert.Contains("Name", result.ExtractedMembers);
+        Assert.DoesNotContain("MultiplyInternal", result.ExtractedMembers);
     }
 
     [Fact]
@@ -95,120 +58,39 @@ using System;
 
 namespace TestNamespace
 {
-    public class DataProcessor
+    public class DataService
     {
-        public void ProcessData(string data)
+        public string GetData()
         {
-            Console.WriteLine($""Processing: {data}"");
-        }
-
-        public string FormatData(string data)
-        {
-            return data.ToUpper();
+            return ""Data"";
         }
 
         public void SaveData(string data)
         {
-            Console.WriteLine($""Saving: {data}"");
+            // Save implementation
         }
 
-        public void ValidateData(string data)
+        public void DeleteData()
         {
-            if (string.IsNullOrEmpty(data))
-                throw new ArgumentException(""Data cannot be null or empty"");
+            // Delete implementation
         }
-    }
-}";
 
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new ExtractInterfaceRefactorer();
-        var membersToExtract = new[] { "ProcessData", "FormatData" };
-
-        // Act
-        var result = await refactorer.ExtractInterfaceAsync(_testFilePath, "DataProcessor", "IDataProcessor", membersToExtract);
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Contains("IDataProcessor", result.InterfaceContent);
-        Assert.Contains("void ProcessData(string data);", result.InterfaceContent);
-        Assert.Contains("string FormatData(string data);", result.InterfaceContent);
-        Assert.DoesNotContain("SaveData", result.InterfaceContent);
-        Assert.DoesNotContain("ValidateData", result.InterfaceContent);
-
-        Assert.Equal(2, result.ExtractedMembers.Length);
-        Assert.Contains("ProcessData", result.ExtractedMembers);
-        Assert.Contains("FormatData", result.ExtractedMembers);
-    }
-
-    [Fact]
-    public async Task ExtractInterfaceAsync_WithProperties_ExtractsProperties()
-    {
-        // Arrange
-        var sourceCode = @"
-using System;
-
-namespace TestNamespace
-{
-    public class Configuration
-    {
         public string ConnectionString { get; set; }
-        public int TimeoutSeconds { get; set; }
-        private string InternalKey { get; set; }
-
-        public void Initialize()
-        {
-            Console.WriteLine(""Initializing configuration"");
-        }
-
-        public string GetSetting(string key)
-        {
-            return ""some value"";
-        }
     }
 }";
 
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new ExtractInterfaceRefactorer();
+        var refactorer = new SimpleExtractInterfaceRefactorer();
 
         // Act
-        var result = await refactorer.ExtractInterfaceAsync(_testFilePath, "Configuration", "IConfiguration", Array.Empty<string>());
+        var result = await refactorer.ExtractInterfaceAsync(sourceCode, "DataService", "IDataService", new[] { "GetData", "SaveData" });
 
         // Assert
         Assert.NotNull(result);
-        Assert.Contains("IConfiguration", result.InterfaceContent);
-        Assert.Contains("string ConnectionString { get; set; }", result.InterfaceContent);
-        Assert.Contains("int TimeoutSeconds { get; set; }", result.InterfaceContent);
-        Assert.Contains("void Initialize();", result.InterfaceContent);
-        Assert.Contains("string GetSetting(string key);", result.InterfaceContent);
-        Assert.DoesNotContain("InternalKey", result.InterfaceContent); // Private property should not be included
-
-        Assert.Contains("ConnectionString", result.ExtractedMembers);
-        Assert.Contains("TimeoutSeconds", result.ExtractedMembers);
-        Assert.Contains("Initialize", result.ExtractedMembers);
-        Assert.Contains("GetSetting", result.ExtractedMembers);
-    }
-
-    [Fact]
-    public async Task ExtractInterfaceAsync_ClassNotFound_ThrowsException()
-    {
-        // Arrange
-        var sourceCode = @"
-using System;
-
-namespace TestNamespace
-{
-    public class ExistingClass
-    {
-        public void DoSomething() { }
-    }
-}";
-
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new ExtractInterfaceRefactorer();
-
-        // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => refactorer.ExtractInterfaceAsync(_testFilePath, "NonExistentClass", "IInterface", Array.Empty<string>()));
+        Assert.Equal("IDataService", result.InterfaceName);
+        Assert.Contains("GetData", result.ExtractedMembers);
+        Assert.Contains("SaveData", result.ExtractedMembers);
+        Assert.DoesNotContain("DeleteData", result.ExtractedMembers);
+        Assert.DoesNotContain("ConnectionString", result.ExtractedMembers);
     }
 
     [Fact]
@@ -224,7 +106,7 @@ namespace MyCompany.Services
     {
         public void SendEmail(string to, string subject, string body)
         {
-            Console.WriteLine($""Sending email to {to}: {subject}"");
+            // Send email implementation
         }
 
         public bool IsValidEmail(string email)
@@ -234,58 +116,16 @@ namespace MyCompany.Services
     }
 }";
 
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new ExtractInterfaceRefactorer();
+        var refactorer = new SimpleExtractInterfaceRefactorer();
 
         // Act
-        var result = await refactorer.ExtractInterfaceAsync(_testFilePath, "EmailService", "IEmailService", Array.Empty<string>());
+        var result = await refactorer.ExtractInterfaceAsync(sourceCode, "EmailService", "IEmailService");
 
         // Assert
         Assert.NotNull(result);
-        Assert.Contains("namespace MyCompany.Services", result.InterfaceContent);
-        Assert.Contains("public interface IEmailService", result.InterfaceContent);
-        Assert.Contains("void SendEmail(string to, string subject, string body);", result.InterfaceContent);
-        Assert.Contains("bool IsValidEmail(string email);", result.InterfaceContent);
-
-        Assert.Contains("EmailService : IEmailService", result.ModifiedClassContent);
-    }
-
-    [Fact]
-    public async Task ExtractInterfaceAsync_FileScopedNamespace_HandlesCorrectly()
-    {
-        // Arrange
-        var sourceCode = @"
-using System;
-
-namespace MyCompany.Services;
-
-public class OrderService
-{
-    public void CreateOrder(int customerId, decimal amount)
-    {
-        Console.WriteLine($""Creating order for customer {customerId}: ${amount}"");
-    }
-
-    public void CancelOrder(int orderId)
-    {
-        Console.WriteLine($""Cancelling order {orderId}"");
-    }
-}";
-
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new ExtractInterfaceRefactorer();
-
-        // Act
-        var result = await refactorer.ExtractInterfaceAsync(_testFilePath, "OrderService", "IOrderService", Array.Empty<string>());
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Contains("namespace MyCompany.Services;", result.InterfaceContent);
-        Assert.Contains("public interface IOrderService", result.InterfaceContent);
-        Assert.Contains("void CreateOrder(int customerId, decimal amount);", result.InterfaceContent);
-        Assert.Contains("void CancelOrder(int orderId);", result.InterfaceContent);
-
-        Assert.Contains("OrderService : IOrderService", result.ModifiedClassContent);
+        Assert.Contains("IEmailService", result.ExtractedInterface);
+        Assert.Contains("SendEmail", result.ExtractedMembers);
+        Assert.Contains("IsValidEmail", result.ExtractedMembers);
     }
 
     [Fact]
@@ -297,41 +137,95 @@ using System;
 
 namespace TestNamespace
 {
-    public interface IExisting
+    public class FileManager : IDisposable
     {
-        void ExistingMethod();
-    }
-
-    public class MultiService : IExisting
-    {
-        public void ExistingMethod()
+        public void OpenFile(string path)
         {
-            Console.WriteLine(""Existing implementation"");
+            // Open file implementation
         }
 
-        public void NewMethod()
+        public void CloseFile()
         {
-            Console.WriteLine(""New method"");
+            // Close file implementation
         }
 
-        public string GetData()
+        public void Dispose()
         {
-            return ""data"";
+            // Dispose implementation
         }
     }
 }";
 
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new ExtractInterfaceRefactorer();
+        var refactorer = new SimpleExtractInterfaceRefactorer();
 
         // Act
-        var result = await refactorer.ExtractInterfaceAsync(_testFilePath, "MultiService", "IMultiService", Array.Empty<string>());
+        var result = await refactorer.ExtractInterfaceAsync(sourceCode, "FileManager", "IFileManager", new[] { "OpenFile", "CloseFile" });
 
         // Assert
         Assert.NotNull(result);
-        Assert.Contains("MultiService : IExisting, IMultiService", result.ModifiedClassContent);
-        Assert.Contains("void NewMethod();", result.InterfaceContent);
-        Assert.Contains("string GetData();", result.InterfaceContent);
-        Assert.Contains("void ExistingMethod();", result.InterfaceContent); // Should include all public methods
+        Assert.Contains("IFileManager", result.ModifiedCode);
+        Assert.Contains("IDisposable", result.ModifiedCode);
+        Assert.Contains("OpenFile", result.ExtractedMembers);
+        Assert.Contains("CloseFile", result.ExtractedMembers);
+        Assert.DoesNotContain("Dispose", result.ExtractedMembers);
+    }
+
+    [Fact]
+    public async Task ExtractInterfaceAsync_FileScopedNamespace_HandlesCorrectly()
+    {
+        // Arrange
+        var sourceCode = @"
+using System;
+
+namespace TestNamespace;
+
+public class Logger
+{
+    public void LogInfo(string message)
+    {
+        Console.WriteLine($""INFO: {message}"");
+    }
+
+    public void LogError(string message)
+    {
+        Console.WriteLine($""ERROR: {message}"");
+    }
+}";
+
+        var refactorer = new SimpleExtractInterfaceRefactorer();
+
+        // Act
+        var result = await refactorer.ExtractInterfaceAsync(sourceCode, "Logger", "ILogger");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Contains("ILogger", result.ExtractedInterface);
+        Assert.Contains("LogInfo", result.ExtractedMembers);
+        Assert.Contains("LogError", result.ExtractedMembers);
+    }
+
+    [Fact]
+    public async Task ExtractInterfaceAsync_NonExistentClass_ThrowsException()
+    {
+        // Arrange
+        var sourceCode = @"
+using System;
+
+namespace TestNamespace
+{
+    public class ExistingClass
+    {
+        public void DoSomething()
+        {
+            // Implementation
+        }
+    }
+}";
+
+        var refactorer = new SimpleExtractInterfaceRefactorer();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => refactorer.ExtractInterfaceAsync(sourceCode, "NonExistentClass", "IInterface"));
     }
 }

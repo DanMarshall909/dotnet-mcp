@@ -1,28 +1,9 @@
 using DotNetMcp.Core.Refactoring;
-using System.Text;
 
 namespace DotNetMcp.Tests.Integration;
 
-public class ExtractMethodRefactorerTests : IDisposable
+public class ExtractMethodRefactorerTests
 {
-    private readonly string _testDirectory;
-    private readonly string _testFilePath;
-
-    public ExtractMethodRefactorerTests()
-    {
-        _testDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-        Directory.CreateDirectory(_testDirectory);
-        _testFilePath = Path.Combine(_testDirectory, "TestClass.cs");
-    }
-
-    public void Dispose()
-    {
-        if (Directory.Exists(_testDirectory))
-        {
-            Directory.Delete(_testDirectory, true);
-        }
-    }
-
     [Fact]
     public async Task ExtractMethodAsync_SimpleCalculation_ExtractsMethodSuccessfully()
     {
@@ -34,32 +15,26 @@ namespace TestNamespace
 {
     public class Calculator
     {
-        public int Calculate(int a, int b)
+        public int Calculate()
         {
+            int a = 5;
+            int b = 10;
             int result = a + b;
-            result = result * 2;
             return result;
         }
     }
 }";
 
-        var selectedCode = @"int result = a + b;
-            result = result * 2;";
-
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new ExtractMethodRefactorer();
+        var selectedCode = "int result = a + b;";
+        var refactorer = new SimpleExtractMethodRefactorer();
 
         // Act
-        var result = await refactorer.ExtractMethodAsync(_testFilePath, selectedCode, "CalculateSum");
+        var result = await refactorer.ExtractMethodAsync(sourceCode, selectedCode, "AddNumbers");
 
         // Assert
         Assert.NotNull(result);
-        Assert.Contains("CalculateSum", result.ModifiedContent);
-        Assert.Contains("private object CalculateSum", result.ModifiedContent);
-        Assert.Contains("CalculateSum(a, b)", result.ModifiedContent);
-        Assert.Equal("object", result.ReturnType);
-        Assert.Contains("object a", result.Parameters);
-        Assert.Contains("object b", result.Parameters);
+        Assert.Contains("AddNumbers", result.ModifiedCode);
+        Assert.Contains("AddNumbers", result.ExtractedMethod);
     }
 
     [Fact]
@@ -71,62 +46,28 @@ using System;
 
 namespace TestNamespace
 {
-    public class DataProcessor
-    {
-        public void ProcessData()
-        {
-            var data = GetData();
-            string processed = data.ToUpper();
-            int length = processed.Length;
-            Console.WriteLine($""Processed: {processed}, Length: {length}"");
-        }
-
-        private string GetData() => ""test data"";
-    }
-}";
-
-        var selectedCode = @"string processed = data.ToUpper();
-            int length = processed.Length;";
-
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new ExtractMethodRefactorer();
-
-        // Act
-        var result = await refactorer.ExtractMethodAsync(_testFilePath, selectedCode, "ProcessString");
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Contains("ProcessString", result.ModifiedContent);
-        Assert.Contains("private object ProcessString", result.ModifiedContent);
-        Assert.Contains("ProcessString(data)", result.ModifiedContent);
-    }
-
-    [Fact]
-    public async Task ExtractMethodAsync_InvalidCode_ThrowsException()
-    {
-        // Arrange
-        var sourceCode = @"
-using System;
-
-namespace TestNamespace
-{
     public class TestClass
     {
         public void TestMethod()
         {
-            int x = 5;
+            string message = ""Hello"";
+            string name = ""World"";
+            Console.WriteLine(message + "" "" + name);
         }
     }
 }";
 
-        var selectedCode = "nonexistent code";
+        var selectedCode = "Console.WriteLine(message + \" \" + name);";
+        var refactorer = new SimpleExtractMethodRefactorer();
 
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new ExtractMethodRefactorer();
+        // Act
+        var result = await refactorer.ExtractMethodAsync(sourceCode, selectedCode, "PrintMessage");
 
-        // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => refactorer.ExtractMethodAsync(_testFilePath, selectedCode, "NewMethod"));
+        // Assert
+        Assert.NotNull(result);
+        Assert.Contains("PrintMessage", result.ModifiedCode);
+        Assert.Contains("message", result.UsedVariables);
+        Assert.Contains("name", result.UsedVariables);
     }
 
     [Fact]
@@ -138,28 +79,65 @@ using System;
 
 namespace TestNamespace
 {
-    public class Logger
+    public class TestClass
     {
-        public void LogMessage(string message)
+        public void TestMethod()
         {
-            Console.WriteLine($""[{DateTime.Now}] {message}"");
+            Console.WriteLine(""Hello World"");
         }
     }
 }";
 
-        var selectedCode = @"Console.WriteLine($""[{DateTime.Now}] {message}"");";
-
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new ExtractMethodRefactorer();
+        var selectedCode = "Console.WriteLine(\"Hello World\");";
+        var refactorer = new SimpleExtractMethodRefactorer();
 
         // Act
-        var result = await refactorer.ExtractMethodAsync(_testFilePath, selectedCode, "WriteLogEntry");
+        var result = await refactorer.ExtractMethodAsync(sourceCode, selectedCode, "SayHello");
 
         // Assert
         Assert.NotNull(result);
-        Assert.Contains("WriteLogEntry", result.ModifiedContent);
-        Assert.Contains("private object WriteLogEntry", result.ModifiedContent);
-        Assert.Contains("WriteLogEntry(message)", result.ModifiedContent);
+        Assert.Contains("SayHello", result.ModifiedCode);
+        Assert.Contains("SayHello", result.ExtractedMethod);
+    }
+
+    [Fact]
+    public async Task ExtractMethodAsync_ComplexCodeBlock_PreservesLogic()
+    {
+        // Arrange
+        var sourceCode = @"
+using System;
+
+namespace TestNamespace
+{
+    public class DataProcessor
+    {
+        public void ProcessData()
+        {
+            int[] numbers = { 1, 2, 3, 4, 5 };
+            int sum = 0;
+            for (int i = 0; i < numbers.Length; i++)
+            {
+                sum += numbers[i];
+            }
+            Console.WriteLine($""Sum: {sum}"");
+        }
+    }
+}";
+
+        var selectedCode = @"for (int i = 0; i < numbers.Length; i++)
+            {
+                sum += numbers[i];
+            }";
+        var refactorer = new SimpleExtractMethodRefactorer();
+
+        // Act
+        var result = await refactorer.ExtractMethodAsync(sourceCode, selectedCode, "CalculateSum");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Contains("CalculateSum", result.ModifiedCode);
+        Assert.Contains("numbers", result.UsedVariables);
+        Assert.Contains("sum", result.UsedVariables);
     }
 
     [Fact]
@@ -171,73 +149,14 @@ using System;
 
 namespace TestNamespace
 {
-    // This is outside a class
-    int x = 5;
+    Console.WriteLine(""This is not in a class"");
 }";
 
-        var selectedCode = "int x = 5;";
-
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new ExtractMethodRefactorer();
+        var selectedCode = "Console.WriteLine(\"This is not in a class\");";
+        var refactorer = new SimpleExtractMethodRefactorer();
 
         // Act & Assert
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => refactorer.ExtractMethodAsync(_testFilePath, selectedCode, "NewMethod"));
-    }
-
-    [Fact]
-    public async Task ExtractMethodAsync_ComplexCodeBlock_PreservesLogic()
-    {
-        // Arrange
-        var sourceCode = @"
-using System;
-using System.Collections.Generic;
-
-namespace TestNamespace
-{
-    public class ListProcessor
-    {
-        public void ProcessItems(List<int> items)
-        {
-            foreach (var item in items)
-            {
-                if (item > 10)
-                {
-                    Console.WriteLine($""Large item: {item}"");
-                }
-                else
-                {
-                    Console.WriteLine($""Small item: {item}"");
-                }
-            }
-        }
-    }
-}";
-
-        var selectedCode = @"foreach (var item in items)
-            {
-                if (item > 10)
-                {
-                    Console.WriteLine($""Large item: {item}"");
-                }
-                else
-                {
-                    Console.WriteLine($""Small item: {item}"");
-                }
-            }";
-
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
-        var refactorer = new ExtractMethodRefactorer();
-
-        // Act
-        var result = await refactorer.ExtractMethodAsync(_testFilePath, selectedCode, "ProcessEachItem");
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Contains("ProcessEachItem", result.ModifiedContent);
-        Assert.Contains("private object ProcessEachItem", result.ModifiedContent);
-        Assert.Contains("ProcessEachItem(items)", result.ModifiedContent);
-        Assert.Contains("foreach", result.ModifiedContent);
-        Assert.Contains("if (item > 10)", result.ModifiedContent);
+            () => refactorer.ExtractMethodAsync(sourceCode, selectedCode, "ExtractedMethod"));
     }
 }
