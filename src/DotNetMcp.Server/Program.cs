@@ -1,9 +1,8 @@
-using System.Text.Json;
-using System.Text.Json.Nodes;
+using DotNetMcp.Core.VSA;
+using DotNetMcp.Server.VSA;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using DotNetMcp.Server;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -11,16 +10,14 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
 
-// Register our refactoring tools
-builder.Services.AddSingleton<ExtractMethodTool>();
-builder.Services.AddSingleton<ExtractMethodCompactTool>();
-builder.Services.AddSingleton<RenameSymbolTool>();
-builder.Services.AddSingleton<RenameSymbolMultiFileTool>();
-builder.Services.AddSingleton<ExtractInterfaceTool>();
-builder.Services.AddSingleton<IntroduceVariableTool>();
+// Add Vertical Slice Architecture services
+builder.Services.AddVerticalSliceArchitecture();
+
+// Register the VSA MCP server
+builder.Services.AddScoped<McpServerWithVSA>();
 
 var app = builder.Build();
 
-// MCP JSON-RPC over stdin/stdout
-var mcpServer = new McpServer(app.Services);
+// Run the VSA MCP server
+var mcpServer = app.Services.GetRequiredService<McpServerWithVSA>();
 await mcpServer.RunAsync();

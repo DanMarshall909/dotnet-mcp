@@ -4,9 +4,9 @@ using Microsoft.Extensions.Logging;
 
 namespace DotNetMcp.Server;
 
-public class ExtractMethodCompactTool(ILogger<ExtractMethodCompactTool> logger)
+public class ExtractMethodCompactTool(ILogger<ExtractMethodCompactTool> logger, ExtractMethodRefactorer refactorer)
 {
-    private readonly ExtractMethodRefactorer _refactorer = new();
+    private readonly ExtractMethodRefactorer _refactorer = refactorer;
 
     public async Task<string> ExtractMethodCompact(string filePath, string selectedCode, string methodName)
     {

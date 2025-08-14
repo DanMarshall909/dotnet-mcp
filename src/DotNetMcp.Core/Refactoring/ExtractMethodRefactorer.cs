@@ -8,6 +8,12 @@ namespace DotNetMcp.Core.Refactoring;
 
 public class ExtractMethodRefactorer : RefactoringBase
 {
+    private readonly DeltaGenerator _deltaGenerator;
+
+    public ExtractMethodRefactorer(DeltaGenerator deltaGenerator)
+    {
+        _deltaGenerator = deltaGenerator;
+    }
     public record ExtractMethodResult(
         string ModifiedCode,
         string ExtractedMethod,
@@ -94,14 +100,14 @@ public class ExtractMethodRefactorer : RefactoringBase
             var fullResult = await ExtractMethodAsync(code, selectedCode, methodName);
             
             // Generate delta instead of full content
-            var delta = DeltaGenerator.GenerateDelta(
+            var delta = _deltaGenerator.GenerateDelta(
                 filePath,
                 code,
                 fullResult.ModifiedCode,
                 fullResult.ExtractedMethod,
                 fullResult.UsedVariables);
             
-            var tokenSavings = DeltaGenerator.EstimateTokenSavings(delta, code);
+            var tokenSavings = _deltaGenerator.EstimateTokenSavings(delta, code);
             
             var summary = new RefactoringSummary(
                 methodName,

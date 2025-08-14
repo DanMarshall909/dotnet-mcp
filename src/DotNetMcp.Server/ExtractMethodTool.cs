@@ -5,7 +5,7 @@ using DotNetMcp.Core.Refactoring;
 
 namespace DotNetMcp.Server;
 
-public class ExtractMethodTool(ILogger<ExtractMethodTool> logger)
+public class ExtractMethodTool(ILogger<ExtractMethodTool> logger, ExtractMethodRefactorer refactorer)
 {
     [Description("Extract a block of code into a new method")]
     public async Task<string> ExtractMethod(
@@ -18,8 +18,7 @@ public class ExtractMethodTool(ILogger<ExtractMethodTool> logger)
         try
         {
             var sourceCode = await File.ReadAllTextAsync(filePath);
-            var extractor = new ExtractMethodRefactorer();
-            var result = await extractor.ExtractMethodAsync(sourceCode, selectedCode, methodName);
+            var result = await refactorer.ExtractMethodAsync(sourceCode, selectedCode, methodName);
 
             // Write the modified content back to the file
             await File.WriteAllTextAsync(filePath, result.ModifiedCode);

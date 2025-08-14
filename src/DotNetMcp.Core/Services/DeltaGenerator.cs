@@ -2,9 +2,9 @@ using DotNetMcp.Core.Models;
 
 namespace DotNetMcp.Core.Services;
 
-public static class DeltaGenerator
+public class DeltaGenerator
 {
-    public static RefactoringDelta GenerateDelta(string filePath, string originalContent, string modifiedContent, string? methodSignature = null, string[]? affectedVariables = null)
+    public RefactoringDelta GenerateDelta(string filePath, string originalContent, string modifiedContent, string? methodSignature = null, string[]? affectedVariables = null)
     {
         var originalLines = originalContent.Split('\n');
         var modifiedLines = modifiedContent.Split('\n');
@@ -26,7 +26,7 @@ public static class DeltaGenerator
             affectedVariables ?? Array.Empty<string>());
     }
     
-    private static List<Models.TextChange> GenerateLineDiff(string[] originalLines, string[] modifiedLines)
+    private List<Models.TextChange> GenerateLineDiff(string[] originalLines, string[] modifiedLines)
     {
         var changes = new List<Models.TextChange>();
         var originalIndex = 0;
@@ -135,7 +135,7 @@ public static class DeltaGenerator
         return changes;
     }
     
-    public static int EstimateTokenSavings(RefactoringDelta delta, string originalContent)
+    public int EstimateTokenSavings(RefactoringDelta delta, string originalContent)
     {
         var originalTokens = EstimateTokenCount(originalContent);
         var deltaTokens = EstimateTokenCount(string.Join("\n", delta.Changes.Select(c => c.NewText)));
@@ -143,7 +143,7 @@ public static class DeltaGenerator
         return Math.Max(0, originalTokens - deltaTokens);
     }
     
-    private static int EstimateTokenCount(string text)
+    private int EstimateTokenCount(string text)
     {
         // Simple heuristic: ~4 characters per token on average for code
         return text.Length / 4;

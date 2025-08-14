@@ -1,0 +1,23 @@
+{
+  "stryker-config": {
+    "project": "src/DotNetMcp.Core/DotNetMcp.Core.csproj",
+    "test-projects": [
+      "src/DotNetMcp.Tests/DotNetMcp.Tests.csproj"
+    ],
+    "reporters": [
+      "progress",
+      "json"
+    ],
+    "mutate": [
+      "**/*.cs",
+      "!**/Program.cs",
+      "!**/obj/**/*",
+      "!**/bin/**/*"
+    ],
+    "target-framework": "net9.0",
+    "additional-timeout": 30000,
+    "concurrency": 2,
+    "mutation-level": "standard",
+    "verbosity": "info"
+  }
+}
