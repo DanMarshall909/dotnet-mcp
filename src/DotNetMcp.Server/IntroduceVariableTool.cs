@@ -21,7 +21,7 @@ public class IntroduceVariableTool(ILogger<IntroduceVariableTool> logger)
         try
         {
             var sourceCode = await File.ReadAllTextAsync(filePath);
-            var introducer = new SimpleIntroduceVariableRefactorer();
+            var introducer = new IntroduceVariableRefactorer();
             var result = await introducer.IntroduceVariableAsync(sourceCode, expression, variableName, scope, replaceAll);
 
             // Write the modified content back to the file

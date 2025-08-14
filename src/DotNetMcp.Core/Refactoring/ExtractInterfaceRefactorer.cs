@@ -4,23 +4,21 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace DotNetMcp.Core.Refactoring;
 
-public class ExtractInterfaceRefactorer
+public class ExtractInterfaceRefactorer : RefactoringBase
 {
     public record ExtractInterfaceResult(
-        string InterfaceContent,
-        string ModifiedClassContent,
-        string InterfaceFilePath,
+        string ModifiedCode,
+        string ExtractedInterface,
         string[] ExtractedMembers,
-        string[] AffectedFiles);
+        string InterfaceName);
 
     public async Task<ExtractInterfaceResult> ExtractInterfaceAsync(
-        string filePath, 
+        string code, 
         string className, 
         string interfaceName, 
-        string[] memberNames)
+        string[]? memberNames = null)
     {
-        var sourceCode = await File.ReadAllTextAsync(filePath);
-        var syntaxTree = CSharpSyntaxTree.ParseText(sourceCode);
+        var (syntaxTree, semanticModel) = ParseCode(code);
         var root = await syntaxTree.GetRootAsync();
 
         // Find the target class
@@ -30,66 +28,51 @@ public class ExtractInterfaceRefactorer
 
         if (classDeclaration == null)
         {
-            throw new ArgumentException($"Class '{className}' not found in file");
+            throw new InvalidOperationException($"Class '{className}' not found");
         }
 
-        // Extract public members (or specified members)
+        // Get members to extract
         var membersToExtract = GetMembersToExtract(classDeclaration, memberNames);
-        var interfaceMembers = CreateInterfaceMembers(membersToExtract);
         
-        // Create the interface declaration
-        var interfaceDeclaration = CreateInterfaceDeclaration(interfaceName, interfaceMembers);
+        // Create the interface
+        var interfaceDeclaration = CreateInterface(interfaceName, membersToExtract, semanticModel);
         
         // Modify the class to implement the interface
-        var modifiedClass = AddInterfaceImplementation(classDeclaration, interfaceName);
-        var newRoot = root.ReplaceNode(classDeclaration, modifiedClass);
-
-        // Generate interface file content
-        var namespaceDeclaration = classDeclaration.FirstAncestorOrSelf<BaseNamespaceDeclarationSyntax>();
-        var interfaceContent = GenerateInterfaceFileContent(interfaceDeclaration, namespaceDeclaration);
+        var modifiedClass = AddInterfaceToClass(classDeclaration, interfaceName);
         
-        var interfaceFilePath = Path.Combine(Path.GetDirectoryName(filePath)!, $"{interfaceName}.cs");
+        // Replace the class in the syntax tree
+        var modifiedRoot = root.ReplaceNode(classDeclaration, modifiedClass);
         
-        // Write the interface file
-        await File.WriteAllTextAsync(interfaceFilePath, interfaceContent);
+        // Add the interface to the compilation unit
+        var compilationUnit = modifiedRoot as CompilationUnitSyntax;
+        if (compilationUnit != null)
+        {
+            modifiedRoot = compilationUnit.AddMembers(interfaceDeclaration);
+        }
 
         var extractedMemberNames = membersToExtract.Select(GetMemberName).ToArray();
-        
+
         return new ExtractInterfaceResult(
-            interfaceContent,
-            newRoot.ToFullString(),
-            interfaceFilePath,
+            modifiedRoot.ToFullString(),
+            interfaceDeclaration.ToFullString(),
             extractedMemberNames,
-            [filePath, interfaceFilePath]);
+            interfaceName);
     }
 
-    private static List<MemberDeclarationSyntax> GetMembersToExtract(
+    private static IEnumerable<MemberDeclarationSyntax> GetMembersToExtract(
         ClassDeclarationSyntax classDeclaration, 
-        string[] specificMembers)
+        string[]? memberNames = null)
     {
         var publicMembers = classDeclaration.Members
-            .Where(m => IsPublicMember(m))
-            .Where(m => IsExtractableMember(m))
-            .ToList();
+            .Where(m => m.Modifiers.Any(mod => mod.IsKind(SyntaxKind.PublicKeyword)))
+            .Where(m => m is MethodDeclarationSyntax or PropertyDeclarationSyntax);
 
-        if (specificMembers.Length > 0)
+        if (memberNames != null && memberNames.Length > 0)
         {
-            return publicMembers
-                .Where(m => specificMembers.Contains(GetMemberName(m)))
-                .ToList();
+            return publicMembers.Where(m => memberNames.Contains(GetMemberName(m)));
         }
 
         return publicMembers;
-    }
-
-    private static bool IsPublicMember(MemberDeclarationSyntax member)
-    {
-        return member.Modifiers.Any(m => m.IsKind(SyntaxKind.PublicKeyword));
-    }
-
-    private static bool IsExtractableMember(MemberDeclarationSyntax member)
-    {
-        return member is MethodDeclarationSyntax or PropertyDeclarationSyntax or EventDeclarationSyntax;
     }
 
     private static string GetMemberName(MemberDeclarationSyntax member)
@@ -98,23 +81,23 @@ public class ExtractInterfaceRefactorer
         {
             MethodDeclarationSyntax method => method.Identifier.ValueText,
             PropertyDeclarationSyntax property => property.Identifier.ValueText,
-            EventDeclarationSyntax eventDecl => eventDecl.Identifier.ValueText,
-            _ => string.Empty
+            _ => "Unknown"
         };
     }
 
-    private static List<MemberDeclarationSyntax> CreateInterfaceMembers(
-        IEnumerable<MemberDeclarationSyntax> classMembers)
+    private static InterfaceDeclarationSyntax CreateInterface(
+        string interfaceName, 
+        IEnumerable<MemberDeclarationSyntax> members,
+        SemanticModel semanticModel)
     {
         var interfaceMembers = new List<MemberDeclarationSyntax>();
 
-        foreach (var member in classMembers)
+        foreach (var member in members)
         {
             MemberDeclarationSyntax? interfaceMember = member switch
             {
                 MethodDeclarationSyntax method => CreateInterfaceMethod(method),
                 PropertyDeclarationSyntax property => CreateInterfaceProperty(property),
-                EventDeclarationSyntax eventDecl => CreateInterfaceEvent(eventDecl),
                 _ => null
             };
 
@@ -124,85 +107,53 @@ public class ExtractInterfaceRefactorer
             }
         }
 
-        return interfaceMembers;
+        return SyntaxFactory.InterfaceDeclaration(interfaceName)
+            .WithModifiers(SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.PublicKeyword)))
+            .WithMembers(SyntaxFactory.List(interfaceMembers));
     }
 
     private static MethodDeclarationSyntax CreateInterfaceMethod(MethodDeclarationSyntax method)
     {
-        return method
-            .WithModifiers(SyntaxFactory.TokenList()) // Remove all modifiers (public, virtual, etc.)
-            .WithBody(null) // Remove method body
-            .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)) // Add semicolon
-            .WithLeadingTrivia(SyntaxFactory.TriviaList())
-            .WithTrailingTrivia(SyntaxFactory.TriviaList());
+        return SyntaxFactory.MethodDeclaration(method.ReturnType, method.Identifier)
+            .WithParameterList(method.ParameterList)
+            .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken));
     }
 
     private static PropertyDeclarationSyntax CreateInterfaceProperty(PropertyDeclarationSyntax property)
     {
-        return property
-            .WithModifiers(SyntaxFactory.TokenList()) // Remove all modifiers
-            .WithLeadingTrivia(SyntaxFactory.TriviaList())
-            .WithTrailingTrivia(SyntaxFactory.TriviaList());
+        var accessorList = SyntaxFactory.AccessorList();
+        
+        // Add getter if present
+        if (property.AccessorList?.Accessors.Any(a => a.IsKind(SyntaxKind.GetAccessorDeclaration)) == true)
+        {
+            accessorList = accessorList.AddAccessors(
+                SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration)
+                    .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)));
+        }
+        
+        // Add setter if present
+        if (property.AccessorList?.Accessors.Any(a => a.IsKind(SyntaxKind.SetAccessorDeclaration)) == true)
+        {
+            accessorList = accessorList.AddAccessors(
+                SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration)
+                    .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)));
+        }
+
+        return SyntaxFactory.PropertyDeclaration(property.Type, property.Identifier)
+            .WithAccessorList(accessorList);
     }
 
-    private static EventDeclarationSyntax CreateInterfaceEvent(EventDeclarationSyntax eventDecl)
+    private static ClassDeclarationSyntax AddInterfaceToClass(ClassDeclarationSyntax classDeclaration, string interfaceName)
     {
-        return eventDecl
-            .WithModifiers(SyntaxFactory.TokenList()) // Remove all modifiers
-            .WithLeadingTrivia(SyntaxFactory.TriviaList())
-            .WithTrailingTrivia(SyntaxFactory.TriviaList());
-    }
-
-    private static InterfaceDeclarationSyntax CreateInterfaceDeclaration(
-        string interfaceName, 
-        IEnumerable<MemberDeclarationSyntax> members)
-    {
-        return SyntaxFactory.InterfaceDeclaration(interfaceName)
-            .WithModifiers(SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.PublicKeyword)))
-            .WithMembers(SyntaxFactory.List(members));
-    }
-
-    private static ClassDeclarationSyntax AddInterfaceImplementation(
-        ClassDeclarationSyntax classDeclaration, 
-        string interfaceName)
-    {
-        var baseType = SyntaxFactory.SimpleBaseType(SyntaxFactory.IdentifierName(interfaceName));
+        var interfaceType = SyntaxFactory.SimpleBaseType(SyntaxFactory.IdentifierName(interfaceName));
         
         if (classDeclaration.BaseList == null)
         {
-            var baseList = SyntaxFactory.BaseList(SyntaxFactory.SingletonSeparatedList<BaseTypeSyntax>(baseType));
-            return classDeclaration.WithBaseList(baseList);
+            return classDeclaration.WithBaseList(
+                SyntaxFactory.BaseList(SyntaxFactory.SingletonSeparatedList<BaseTypeSyntax>(interfaceType)));
         }
-        else
-        {
-            var updatedBaseList = classDeclaration.BaseList.AddTypes(baseType);
-            return classDeclaration.WithBaseList(updatedBaseList);
-        }
-    }
-
-    private static string GenerateInterfaceFileContent(
-        InterfaceDeclarationSyntax interfaceDeclaration, 
-        BaseNamespaceDeclarationSyntax? namespaceDeclaration)
-    {
-        var compilationUnit = SyntaxFactory.CompilationUnit();
-
-        if (namespaceDeclaration != null)
-        {
-            MemberDeclarationSyntax interfaceNamespace = namespaceDeclaration switch
-            {
-                NamespaceDeclarationSyntax ns => ns.WithMembers(SyntaxFactory.SingletonList<MemberDeclarationSyntax>(interfaceDeclaration)),
-                FileScopedNamespaceDeclarationSyntax fsns => SyntaxFactory.FileScopedNamespaceDeclaration(fsns.Name)
-                    .WithMembers(SyntaxFactory.SingletonList<MemberDeclarationSyntax>(interfaceDeclaration)),
-                _ => throw new NotSupportedException("Unsupported namespace type")
-            };
-            
-            compilationUnit = compilationUnit.AddMembers(interfaceNamespace);
-        }
-        else
-        {
-            compilationUnit = compilationUnit.AddMembers(interfaceDeclaration);
-        }
-
-        return compilationUnit.NormalizeWhitespace().ToFullString();
+        
+        return classDeclaration.WithBaseList(
+            classDeclaration.BaseList.AddTypes(interfaceType));
     }
 }

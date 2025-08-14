@@ -18,7 +18,7 @@ public class ExtractMethodTool(ILogger<ExtractMethodTool> logger)
         try
         {
             var sourceCode = await File.ReadAllTextAsync(filePath);
-            var extractor = new SimpleExtractMethodRefactorer();
+            var extractor = new ExtractMethodRefactorer();
             var result = await extractor.ExtractMethodAsync(sourceCode, selectedCode, methodName);
 
             // Write the modified content back to the file

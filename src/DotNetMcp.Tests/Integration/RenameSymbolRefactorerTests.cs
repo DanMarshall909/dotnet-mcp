@@ -30,7 +30,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleRenameSymbolRefactorer();
+        var refactorer = new RenameSymbolRefactorer();
 
         // Act
         var result = await refactorer.RenameSymbolAsync(sourceCode, "OldClassName", "NewClassName", "class");
@@ -66,7 +66,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleRenameSymbolRefactorer();
+        var refactorer = new RenameSymbolRefactorer();
 
         // Act
         var result = await refactorer.RenameSymbolAsync(sourceCode, "OldMethodName", "NewMethodName", "method");
@@ -99,7 +99,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleRenameSymbolRefactorer();
+        var refactorer = new RenameSymbolRefactorer();
 
         // Act
         var result = await refactorer.RenameSymbolAsync(sourceCode, "oldVariableName", "newVariableName", "variable");
@@ -135,7 +135,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleRenameSymbolRefactorer();
+        var refactorer = new RenameSymbolRefactorer();
 
         // Act
         var result = await refactorer.RenameSymbolAsync(sourceCode, "IOldInterface", "INewInterface", "interface");
@@ -169,7 +169,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleRenameSymbolRefactorer();
+        var refactorer = new RenameSymbolRefactorer();
 
         // Act
         var result = await refactorer.RenameSymbolAsync(sourceCode, "oldFieldName", "newFieldName", "variable");
@@ -201,7 +201,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleRenameSymbolRefactorer();
+        var refactorer = new RenameSymbolRefactorer();
 
         // Act
         var result = await refactorer.RenameSymbolAsync(sourceCode, "TestTarget", "RenamedTarget", "auto");
@@ -232,7 +232,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleRenameSymbolRefactorer();
+        var refactorer = new RenameSymbolRefactorer();
 
         // Act
         var result = await refactorer.RenameSymbolAsync(sourceCode, "NonExistentSymbol", "NewName", "auto");

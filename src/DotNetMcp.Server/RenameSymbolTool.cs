@@ -20,7 +20,7 @@ public class RenameSymbolTool(ILogger<RenameSymbolTool> logger)
         try
         {
             var sourceCode = await File.ReadAllTextAsync(solutionPath);
-            var renamer = new SimpleRenameSymbolRefactorer();
+            var renamer = new RenameSymbolRefactorer();
             var result = await renamer.RenameSymbolAsync(sourceCode, originalName, newName, symbolKind);
 
             // Write the modified content back to the file

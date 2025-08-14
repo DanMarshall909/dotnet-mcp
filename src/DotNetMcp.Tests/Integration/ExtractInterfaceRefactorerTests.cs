@@ -34,7 +34,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleExtractInterfaceRefactorer();
+        var refactorer = new ExtractInterfaceRefactorer();
 
         // Act
         var result = await refactorer.ExtractInterfaceAsync(sourceCode, "Calculator", "ICalculator");
@@ -79,7 +79,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleExtractInterfaceRefactorer();
+        var refactorer = new ExtractInterfaceRefactorer();
 
         // Act
         var result = await refactorer.ExtractInterfaceAsync(sourceCode, "DataService", "IDataService", new[] { "GetData", "SaveData" });
@@ -116,7 +116,7 @@ namespace MyCompany.Services
     }
 }";
 
-        var refactorer = new SimpleExtractInterfaceRefactorer();
+        var refactorer = new ExtractInterfaceRefactorer();
 
         // Act
         var result = await refactorer.ExtractInterfaceAsync(sourceCode, "EmailService", "IEmailService");
@@ -156,7 +156,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleExtractInterfaceRefactorer();
+        var refactorer = new ExtractInterfaceRefactorer();
 
         // Act
         var result = await refactorer.ExtractInterfaceAsync(sourceCode, "FileManager", "IFileManager", new[] { "OpenFile", "CloseFile" });
@@ -192,7 +192,7 @@ public class Logger
     }
 }";
 
-        var refactorer = new SimpleExtractInterfaceRefactorer();
+        var refactorer = new ExtractInterfaceRefactorer();
 
         // Act
         var result = await refactorer.ExtractInterfaceAsync(sourceCode, "Logger", "ILogger");
@@ -222,7 +222,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleExtractInterfaceRefactorer();
+        var refactorer = new ExtractInterfaceRefactorer();
 
         // Act & Assert
         await Assert.ThrowsAsync<InvalidOperationException>(

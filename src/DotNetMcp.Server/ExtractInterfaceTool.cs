@@ -20,7 +20,7 @@ public class ExtractInterfaceTool(ILogger<ExtractInterfaceTool> logger)
         try
         {
             var sourceCode = await File.ReadAllTextAsync(filePath);
-            var extractor = new SimpleExtractInterfaceRefactorer();
+            var extractor = new ExtractInterfaceRefactorer();
             var members = memberNames?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [];
             var result = await extractor.ExtractInterfaceAsync(sourceCode, className, interfaceName, members);
 

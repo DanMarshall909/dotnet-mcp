@@ -26,7 +26,7 @@ namespace TestNamespace
 }";
 
         var selectedCode = "int result = a + b;";
-        var refactorer = new SimpleExtractMethodRefactorer();
+        var refactorer = new ExtractMethodRefactorer();
 
         // Act
         var result = await refactorer.ExtractMethodAsync(sourceCode, selectedCode, "AddNumbers");
@@ -58,7 +58,7 @@ namespace TestNamespace
 }";
 
         var selectedCode = "Console.WriteLine(message + \" \" + name);";
-        var refactorer = new SimpleExtractMethodRefactorer();
+        var refactorer = new ExtractMethodRefactorer();
 
         // Act
         var result = await refactorer.ExtractMethodAsync(sourceCode, selectedCode, "PrintMessage");
@@ -89,7 +89,7 @@ namespace TestNamespace
 }";
 
         var selectedCode = "Console.WriteLine(\"Hello World\");";
-        var refactorer = new SimpleExtractMethodRefactorer();
+        var refactorer = new ExtractMethodRefactorer();
 
         // Act
         var result = await refactorer.ExtractMethodAsync(sourceCode, selectedCode, "SayHello");
@@ -128,7 +128,7 @@ namespace TestNamespace
             {
                 sum += numbers[i];
             }";
-        var refactorer = new SimpleExtractMethodRefactorer();
+        var refactorer = new ExtractMethodRefactorer();
 
         // Act
         var result = await refactorer.ExtractMethodAsync(sourceCode, selectedCode, "CalculateSum");
@@ -153,7 +153,7 @@ namespace TestNamespace
 }";
 
         var selectedCode = "Console.WriteLine(\"This is not in a class\");";
-        var refactorer = new SimpleExtractMethodRefactorer();
+        var refactorer = new ExtractMethodRefactorer();
 
         // Act & Assert
         await Assert.ThrowsAsync<InvalidOperationException>(

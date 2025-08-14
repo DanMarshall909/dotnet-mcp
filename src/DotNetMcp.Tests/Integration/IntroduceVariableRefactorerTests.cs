@@ -22,7 +22,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleIntroduceVariableRefactorer();
+        var refactorer = new IntroduceVariableRefactorer();
 
         // Act
         var result = await refactorer.IntroduceVariableAsync(sourceCode, "\"Hello World\"", "message", "local");
@@ -53,7 +53,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleIntroduceVariableRefactorer();
+        var refactorer = new IntroduceVariableRefactorer();
 
         // Act
         var result = await refactorer.IntroduceVariableAsync(sourceCode, "42", "answer", "local");
@@ -86,7 +86,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleIntroduceVariableRefactorer();
+        var refactorer = new IntroduceVariableRefactorer();
 
         // Act
         var result = await refactorer.IntroduceVariableAsync(sourceCode, "true", "isAlwaysTrue", "local");
@@ -116,7 +116,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleIntroduceVariableRefactorer();
+        var refactorer = new IntroduceVariableRefactorer();
 
         // Act
         var result = await refactorer.IntroduceVariableAsync(sourceCode, "3.14159", "pi", "local");
@@ -146,7 +146,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleIntroduceVariableRefactorer();
+        var refactorer = new IntroduceVariableRefactorer();
 
         // Act
         var result = await refactorer.IntroduceVariableAsync(sourceCode, "new StringBuilder()", "builder", "local");
@@ -176,7 +176,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleIntroduceVariableRefactorer();
+        var refactorer = new IntroduceVariableRefactorer();
 
         // Act
         var result = await refactorer.IntroduceVariableAsync(sourceCode, "DateTime.Now.ToString()", "currentTime", "local");
@@ -208,7 +208,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleIntroduceVariableRefactorer();
+        var refactorer = new IntroduceVariableRefactorer();
 
         // Act
         var result = await refactorer.IntroduceVariableAsync(sourceCode, "(a + b) * 2", "calculation", "local");
@@ -237,7 +237,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleIntroduceVariableRefactorer();
+        var refactorer = new IntroduceVariableRefactorer();
 
         // Act
         var result = await refactorer.IntroduceVariableAsync(sourceCode, "\"Hello World\"", "greeting", "field");
@@ -267,7 +267,7 @@ namespace TestNamespace
     }
 }";
 
-        var refactorer = new SimpleIntroduceVariableRefactorer();
+        var refactorer = new IntroduceVariableRefactorer();
 
         // Act
         var result = await refactorer.IntroduceVariableAsync(sourceCode, "42", "DefaultValue", "property");

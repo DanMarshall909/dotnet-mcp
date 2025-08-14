@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace DotNetMcp.Core.Refactoring;
 
-public abstract class SimpleRefactoringBase
+public abstract class RefactoringBase
 {
     protected static (SyntaxTree syntaxTree, SemanticModel semanticModel) ParseCode(string code)
     {

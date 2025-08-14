@@ -4,280 +4,198 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace DotNetMcp.Core.Refactoring;
 
-public class IntroduceVariableRefactorer
+public class IntroduceVariableRefactorer : RefactoringBase
 {
     public record IntroduceVariableResult(
-        string ModifiedContent,
+        string ModifiedCode,
         string VariableDeclaration,
         string VariableType,
         string Scope,
         int ReplacementCount);
 
     public async Task<IntroduceVariableResult> IntroduceVariableAsync(
-        string filePath, 
-        string expression, 
-        string variableName, 
-        string scope, 
-        bool replaceAll)
+        string code,
+        string expression,
+        string variableName,
+        string scope = "local",
+        bool replaceAll = true)
     {
-        var sourceCode = await File.ReadAllTextAsync(filePath);
-        var syntaxTree = CSharpSyntaxTree.ParseText(sourceCode);
+        var (syntaxTree, semanticModel) = ParseCode(code);
         var root = await syntaxTree.GetRootAsync();
 
-        // Find the expression in the code
-        var expressionSpan = sourceCode.IndexOf(expression.Trim());
-        if (expressionSpan == -1)
+        // Find all occurrences of the expression
+        var expressionNodes = FindExpressionOccurrences(root, expression);
+        if (!expressionNodes.Any())
         {
-            throw new ArgumentException("Expression not found in the file");
+            throw new InvalidOperationException($"Expression '{expression}' not found in code");
         }
 
-        var expressionNode = root.FindNode(new Microsoft.CodeAnalysis.Text.TextSpan(expressionSpan, expression.Trim().Length));
-        
-        // Parse the expression to ensure it's valid
-        var parsedExpression = SyntaxFactory.ParseExpression(expression.Trim());
-        if (parsedExpression.ContainsDiagnostics)
-        {
-            throw new ArgumentException("Invalid expression syntax");
-        }
+        // Determine the type of the expression
+        var firstExpression = expressionNodes.First();
+        var variableType = DetermineVariableType(firstExpression, semanticModel);
 
-        // Determine the scope and location for variable declaration
-        var (declarationLocation, actualScope) = DetermineDeclarationLocation(expressionNode, scope);
-        
-        // Infer the variable type (simplified - could use semantic analysis for better type inference)
-        var variableType = InferVariableType(parsedExpression);
-        
         // Create the variable declaration
-        var variableDeclaration = CreateVariableDeclaration(variableName, variableType, parsedExpression);
-        
-        // Find all occurrences of the expression (if replaceAll is true)
-        var occurrences = replaceAll 
-            ? FindAllOccurrences(root, expression.Trim())
-            : [expressionNode];
+        var variableDeclaration = CreateVariableDeclaration(variableName, variableType, firstExpression);
 
-        // Replace occurrences with variable reference
-        var newRoot = root;
+        // Replace expression occurrences with variable reference
+        var modifiedRoot = root;
         var replacementCount = 0;
 
-        foreach (var occurrence in occurrences)
+        var expressionsToReplace = replaceAll ? expressionNodes : expressionNodes.Take(1);
+        
+        foreach (var expr in expressionsToReplace)
         {
-            if (occurrence.Parent != null)
-            {
-                var variableReference = SyntaxFactory.IdentifierName(variableName);
-                newRoot = newRoot.ReplaceNode(occurrence, variableReference);
-                replacementCount++;
-            }
+            var variableReference = SyntaxFactory.IdentifierName(variableName);
+            modifiedRoot = modifiedRoot.ReplaceNode(expr, variableReference);
+            replacementCount++;
         }
 
-        // Insert the variable declaration at the appropriate location
-        newRoot = InsertVariableDeclaration(newRoot, declarationLocation, variableDeclaration, actualScope);
+        // Insert the variable declaration in the appropriate scope
+        modifiedRoot = InsertVariableDeclaration(modifiedRoot, variableDeclaration, firstExpression, scope);
 
-        var modifiedContent = newRoot.ToFullString();
-        
         return new IntroduceVariableResult(
-            modifiedContent,
-            variableDeclaration.ToFullString().Trim(),
+            modifiedRoot.ToFullString(),
+            variableDeclaration.ToFullString(),
             variableType,
-            actualScope,
+            scope,
             replacementCount);
     }
 
-    private static (SyntaxNode location, string scope) DetermineDeclarationLocation(SyntaxNode expressionNode, string requestedScope)
+    private static IEnumerable<ExpressionSyntax> FindExpressionOccurrences(SyntaxNode root, string expression)
     {
-        return requestedScope.ToLower() switch
-        {
-            "field" => (expressionNode.FirstAncestorOrSelf<ClassDeclarationSyntax>() ?? expressionNode, "field"),
-            "property" => (expressionNode.FirstAncestorOrSelf<ClassDeclarationSyntax>() ?? expressionNode, "property"),
-            "local" or _ => DetermineLocalScope(expressionNode)
-        };
+        var normalizedExpression = expression.Replace(" ", "").Replace("\n", "").Replace("\r", "");
+        
+        return root.DescendantNodes()
+            .OfType<ExpressionSyntax>()
+            .Where(expr => expr.ToFullString().Replace(" ", "").Replace("\n", "").Replace("\r", "") == normalizedExpression);
     }
 
-    private static (SyntaxNode location, string scope) DetermineLocalScope(SyntaxNode expressionNode)
+    private static string DetermineVariableType(ExpressionSyntax expression, SemanticModel semanticModel)
     {
-        // Try to find the containing method, constructor, or property accessor
-        var containingMember = expressionNode.FirstAncestorOrSelf<MethodDeclarationSyntax>() ??
-                              expressionNode.FirstAncestorOrSelf<ConstructorDeclarationSyntax>() ??
-                              (SyntaxNode?)expressionNode.FirstAncestorOrSelf<AccessorDeclarationSyntax>() ??
-                              expressionNode.FirstAncestorOrSelf<LocalFunctionStatementSyntax>();
-
-        if (containingMember != null)
+        // For method calls and complex expressions, prefer "var"
+        if (expression is InvocationExpressionSyntax)
         {
-            return (containingMember, "local");
+            return "var";
         }
 
-        // Fall back to block scope
-        var containingBlock = expressionNode.FirstAncestorOrSelf<BlockSyntax>();
-        return (containingBlock ?? expressionNode, "local");
-    }
+        var typeInfo = semanticModel.GetTypeInfo(expression);
+        
+        if (typeInfo.Type != null)
+        {
+            return typeInfo.Type.ToDisplayString();
+        }
 
-    private static string InferVariableType(ExpressionSyntax expression)
-    {
-        // Simplified type inference - in a real implementation, you'd use semantic analysis
+        // Fallback to analyzing the expression syntax
         return expression switch
         {
-            LiteralExpressionSyntax literal => literal.Token.ValueText switch
-            {
-                var s when s.StartsWith("\"") => "string",
-                var s when s.Contains('.') => "double",
-                var s when int.TryParse(s, out _) => "int",
-                "true" or "false" => "bool",
-                _ => "var"
-            },
-            InvocationExpressionSyntax => "var",
-            MemberAccessExpressionSyntax => "var",
-            ObjectCreationExpressionSyntax objCreation => objCreation.Type?.ToString() ?? "var",
+            LiteralExpressionSyntax literal when literal.Token.IsKind(SyntaxKind.StringLiteralToken) => "string",
+            LiteralExpressionSyntax literal when literal.Token.IsKind(SyntaxKind.NumericLiteralToken) => 
+                literal.Token.ValueText.Contains('.') ? "double" : "int",
+            LiteralExpressionSyntax literal when literal.Token.IsKind(SyntaxKind.TrueKeyword) || literal.Token.IsKind(SyntaxKind.FalseKeyword) => "bool",
+            ObjectCreationExpressionSyntax creation => creation.Type?.ToString() ?? "object",
             _ => "var"
         };
     }
 
-    private static LocalDeclarationStatementSyntax CreateVariableDeclaration(
-        string variableName, 
-        string variableType, 
-        ExpressionSyntax initializer)
+    private static VariableDeclarationSyntax CreateVariableDeclaration(string variableName, string variableType, ExpressionSyntax initializer)
     {
-        var variableDeclarator = SyntaxFactory.VariableDeclarator(variableName)
+        var typeSyntax = variableType == "var" 
+            ? SyntaxFactory.IdentifierName("var")
+            : SyntaxFactory.ParseTypeName(variableType);
+
+        var declarator = SyntaxFactory.VariableDeclarator(variableName)
             .WithInitializer(SyntaxFactory.EqualsValueClause(initializer));
 
-        var variableDeclaration = SyntaxFactory.VariableDeclaration(SyntaxFactory.IdentifierName(variableType))
-            .WithVariables(SyntaxFactory.SingletonSeparatedList(variableDeclarator));
-
-        return SyntaxFactory.LocalDeclarationStatement(variableDeclaration);
-    }
-
-    private static FieldDeclarationSyntax CreateFieldDeclaration(
-        string variableName, 
-        string variableType, 
-        ExpressionSyntax initializer)
-    {
-        var variableDeclarator = SyntaxFactory.VariableDeclarator(variableName)
-            .WithInitializer(SyntaxFactory.EqualsValueClause(initializer));
-
-        var variableDeclaration = SyntaxFactory.VariableDeclaration(SyntaxFactory.IdentifierName(variableType))
-            .WithVariables(SyntaxFactory.SingletonSeparatedList(variableDeclarator));
-
-        return SyntaxFactory.FieldDeclaration(variableDeclaration)
-            .WithModifiers(SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.PrivateKeyword)));
-    }
-
-    private static PropertyDeclarationSyntax CreatePropertyDeclaration(
-        string variableName, 
-        string variableType, 
-        ExpressionSyntax initializer)
-    {
-        return SyntaxFactory.PropertyDeclaration(SyntaxFactory.IdentifierName(variableType), variableName)
-            .WithModifiers(SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.PublicKeyword)))
-            .WithAccessorList(SyntaxFactory.AccessorList(SyntaxFactory.List(new[]
-            {
-                SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)),
-                SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken))
-            })))
-            .WithInitializer(SyntaxFactory.EqualsValueClause(initializer))
-            .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken));
-    }
-
-    private static List<SyntaxNode> FindAllOccurrences(SyntaxNode root, string expression)
-    {
-        var parsedExpression = SyntaxFactory.ParseExpression(expression);
-        var occurrences = new List<SyntaxNode>();
-
-        foreach (var node in root.DescendantNodes())
-        {
-            if (node is ExpressionSyntax expr && AreEquivalent(expr, parsedExpression))
-            {
-                occurrences.Add(node);
-            }
-        }
-
-        return occurrences;
-    }
-
-    private static bool AreEquivalent(ExpressionSyntax expr1, ExpressionSyntax expr2)
-    {
-        // Simplified equivalence check - normalize whitespace and compare text
-        return expr1.NormalizeWhitespace().ToString() == expr2.NormalizeWhitespace().ToString();
+        return SyntaxFactory.VariableDeclaration(typeSyntax)
+            .WithVariables(SyntaxFactory.SingletonSeparatedList(declarator));
     }
 
     private static SyntaxNode InsertVariableDeclaration(
         SyntaxNode root, 
-        SyntaxNode declarationLocation, 
-        LocalDeclarationStatementSyntax variableDeclaration, 
+        VariableDeclarationSyntax variableDeclaration, 
+        ExpressionSyntax originalExpression, 
         string scope)
     {
-        return scope switch
+        return scope.ToLower() switch
         {
-            "field" => InsertFieldDeclaration(root, declarationLocation, variableDeclaration),
-            "property" => InsertPropertyDeclaration(root, declarationLocation, variableDeclaration),
-            "local" or _ => InsertLocalDeclaration(root, declarationLocation, variableDeclaration)
+            "local" => InsertLocalVariable(root, variableDeclaration, originalExpression),
+            "field" => InsertFieldVariable(root, variableDeclaration),
+            "property" => InsertPropertyVariable(root, variableDeclaration),
+            _ => InsertLocalVariable(root, variableDeclaration, originalExpression)
         };
     }
 
-    private static SyntaxNode InsertLocalDeclaration(
-        SyntaxNode root, 
-        SyntaxNode declarationLocation, 
-        LocalDeclarationStatementSyntax variableDeclaration)
+    private static SyntaxNode InsertLocalVariable(SyntaxNode root, VariableDeclarationSyntax variableDeclaration, ExpressionSyntax originalExpression)
     {
-        if (declarationLocation is BlockSyntax block)
+        // Find the method or block containing the expression
+        var containingMethod = originalExpression.FirstAncestorOrSelf<MethodDeclarationSyntax>();
+        if (containingMethod?.Body != null)
         {
-            var updatedBlock = block.WithStatements(block.Statements.Insert(0, variableDeclaration));
-            return root.ReplaceNode(block, updatedBlock);
+            var declarationStatement = SyntaxFactory.LocalDeclarationStatement(variableDeclaration);
+            var newBody = containingMethod.Body.WithStatements(
+                containingMethod.Body.Statements.Insert(0, declarationStatement));
+            
+            return root.ReplaceNode(containingMethod.Body, newBody);
         }
 
-        if (declarationLocation is MethodDeclarationSyntax method && method.Body != null)
+        // If not in a method, try to find the nearest block
+        var containingBlock = originalExpression.FirstAncestorOrSelf<BlockSyntax>();
+        if (containingBlock != null)
         {
-            var updatedBody = method.Body.WithStatements(method.Body.Statements.Insert(0, variableDeclaration));
-            var updatedMethod = method.WithBody(updatedBody);
-            return root.ReplaceNode(method, updatedMethod);
-        }
-
-        // For other cases, try to find a suitable block
-        var parentBlock = declarationLocation.FirstAncestorOrSelf<BlockSyntax>();
-        if (parentBlock != null)
-        {
-            var updatedBlock = parentBlock.WithStatements(parentBlock.Statements.Insert(0, variableDeclaration));
-            return root.ReplaceNode(parentBlock, updatedBlock);
-        }
-
-        return root; // Fallback - no changes
-    }
-
-    private static SyntaxNode InsertFieldDeclaration(
-        SyntaxNode root, 
-        SyntaxNode declarationLocation, 
-        LocalDeclarationStatementSyntax localDeclaration)
-    {
-        if (declarationLocation is ClassDeclarationSyntax classDecl)
-        {
-            // Convert local declaration to field declaration
-            var variableDeclarator = localDeclaration.Declaration.Variables.First();
-            var fieldDeclaration = CreateFieldDeclaration(
-                variableDeclarator.Identifier.ValueText,
-                localDeclaration.Declaration.Type.ToString(),
-                variableDeclarator.Initializer?.Value ?? SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression));
-
-            var updatedClass = classDecl.WithMembers(classDecl.Members.Insert(0, fieldDeclaration));
-            return root.ReplaceNode(classDecl, updatedClass);
+            var declarationStatement = SyntaxFactory.LocalDeclarationStatement(variableDeclaration);
+            var newBlock = containingBlock.WithStatements(
+                containingBlock.Statements.Insert(0, declarationStatement));
+            
+            return root.ReplaceNode(containingBlock, newBlock);
         }
 
         return root;
     }
 
-    private static SyntaxNode InsertPropertyDeclaration(
-        SyntaxNode root, 
-        SyntaxNode declarationLocation, 
-        LocalDeclarationStatementSyntax localDeclaration)
+    private static SyntaxNode InsertFieldVariable(SyntaxNode root, VariableDeclarationSyntax variableDeclaration)
     {
-        if (declarationLocation is ClassDeclarationSyntax classDecl)
+        var classDeclaration = root.DescendantNodes().OfType<ClassDeclarationSyntax>().FirstOrDefault();
+        if (classDeclaration != null)
         {
-            // Convert local declaration to property declaration
-            var variableDeclarator = localDeclaration.Declaration.Variables.First();
-            var propertyDeclaration = CreatePropertyDeclaration(
-                variableDeclarator.Identifier.ValueText,
-                localDeclaration.Declaration.Type.ToString(),
-                variableDeclarator.Initializer?.Value ?? SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression));
-
-            var updatedClass = classDecl.WithMembers(classDecl.Members.Insert(0, propertyDeclaration));
-            return root.ReplaceNode(classDecl, updatedClass);
+            var fieldDeclaration = SyntaxFactory.FieldDeclaration(variableDeclaration)
+                .WithModifiers(SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.PrivateKeyword)));
+            
+            var newClass = classDeclaration.WithMembers(
+                classDeclaration.Members.Insert(0, fieldDeclaration));
+            
+            return root.ReplaceNode(classDeclaration, newClass);
         }
-
+        
         return root;
+    }
+
+    private static SyntaxNode InsertPropertyVariable(SyntaxNode root, VariableDeclarationSyntax variableDeclaration)
+    {
+        // Use string-based approach for simplicity
+        var code = root.ToFullString();
+        var variable = variableDeclaration.Variables.First();
+        var propertyName = variable.Identifier.ValueText;
+        var propertyType = variableDeclaration.Type.ToString();
+        
+        var propertyDeclaration = $@"    public {propertyType} {propertyName} {{ get; set; }}";
+        
+        if (variable.Initializer != null)
+        {
+            var initValue = variable.Initializer.Value.ToString();
+            propertyDeclaration = $@"    public {propertyType} {propertyName} {{ get; set; }} = {initValue};";
+        }
+        
+        // Find the class and insert the property
+        var classStartIndex = code.IndexOf("public class");
+        if (classStartIndex >= 0)
+        {
+            var openBraceIndex = code.IndexOf('{', classStartIndex);
+            if (openBraceIndex >= 0)
+            {
+                code = code.Insert(openBraceIndex + 1, $"\n{propertyDeclaration}\n");
+            }
+        }
+        
+        return CSharpSyntaxTree.ParseText(code).GetRoot();
     }
 }
