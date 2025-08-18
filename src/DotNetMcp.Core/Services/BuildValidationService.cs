@@ -7,7 +7,7 @@ namespace DotNetMcp.Core.Services;
 /// <summary>
 /// Service for validating that projects can build before Roslyn analysis
 /// </summary>
-public class BuildValidationService
+public class BuildValidationService : IBuildValidationService
 {
     private readonly IFileSystem _fileSystem;
     private readonly ILogger<BuildValidationService> _logger;

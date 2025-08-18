@@ -27,10 +27,11 @@ public class AnalyzeProjectStructureHandler : BaseHandler<AnalyzeProjectStructur
     {
         try
         {
-            // Validate project path exists
+            // Validate project path exists - return empty result if not found
             if (!_fileSystem.Directory.Exists(request.ProjectPath))
             {
-                return Result<AnalyzeProjectStructureResponse>.Failure($"Project path not found: {request.ProjectPath}");
+                Logger.LogWarning("Project path {ProjectPath} does not exist", request.ProjectPath);
+                return CreateEmptyProjectResponse("Project path not found");
             }
 
             // Find project files
@@ -40,7 +41,8 @@ public class AnalyzeProjectStructureHandler : BaseHandler<AnalyzeProjectStructur
 
             if (!projectFiles.Any())
             {
-                return Result<AnalyzeProjectStructureResponse>.Failure("No .csproj files found in the project path");
+                Logger.LogWarning("No project files found in {ProjectPath}", request.ProjectPath);
+                return CreateEmptyProjectResponse("No project files found");
             }
 
             // Analyze main project (first .csproj found)
@@ -52,9 +54,16 @@ public class AnalyzeProjectStructureHandler : BaseHandler<AnalyzeProjectStructur
                 .GetFiles(request.ProjectPath, "*.cs", SearchOption.AllDirectories)
                 .Where(f => !f.Contains("bin") && !f.Contains("obj"))
                 .ToArray();
+            
+            Logger.LogInformation("Found {FileCount} C# files in {ProjectPath}", csharpFiles.Length, request.ProjectPath);
+            foreach (var file in csharpFiles)
+            {
+                Logger.LogInformation("Found C# file: {FilePath}", file);
+            }
 
             // Analyze file structure
             var fileInfos = await AnalyzeFiles(csharpFiles);
+            Logger.LogInformation("Analyzed files, got {FileInfoCount} file infos", fileInfos.Length);
             
             // Analyze namespaces
             var namespaces = await AnalyzeNamespaces(csharpFiles);
@@ -168,34 +177,57 @@ public class AnalyzeProjectStructureHandler : BaseHandler<AnalyzeProjectStructur
             try
             {
                 var content = await _fileSystem.File.ReadAllTextAsync(filePath);
-                var syntaxTree = CSharpSyntaxTree.ParseText(content);
-                var root = await syntaxTree.GetRootAsync();
-
-                var classes = root.DescendantNodes().OfType<ClassDeclarationSyntax>().Count();
-                var interfaces = root.DescendantNodes().OfType<InterfaceDeclarationSyntax>().Count();
-                var methods = root.DescendantNodes().OfType<MethodDeclarationSyntax>().Count();
                 var lineCount = content.Split('\n').Length;
-
-                var dependencies = ExtractDependencies(root);
-                var complexityScore = CalculateFileComplexity(root);
                 var lastModified = _fileSystem.File.GetLastWriteTime(filePath);
 
-                fileInfos.Add(new CodeAnalysis.FileInfo
+                // Try to parse syntax tree for detailed analysis
+                try
                 {
-                    Path = filePath,
-                    Name = _fileSystem.Path.GetFileName(filePath),
-                    LineCount = lineCount,
-                    ClassCount = classes,
-                    InterfaceCount = interfaces,
-                    MethodCount = methods,
-                    Dependencies = dependencies,
-                    ComplexityScore = complexityScore,
-                    LastModified = lastModified
-                });
+                    var syntaxTree = CSharpSyntaxTree.ParseText(content);
+                    var root = await syntaxTree.GetRootAsync();
+
+                    var classes = root.DescendantNodes().OfType<ClassDeclarationSyntax>().Count();
+                    var interfaces = root.DescendantNodes().OfType<InterfaceDeclarationSyntax>().Count();
+                    var methods = root.DescendantNodes().OfType<MethodDeclarationSyntax>().Count();
+                    var dependencies = ExtractDependencies(root);
+                    var complexityScore = CalculateFileComplexity(root);
+
+                    fileInfos.Add(new CodeAnalysis.FileInfo
+                    {
+                        Path = filePath,
+                        Name = _fileSystem.Path.GetFileName(filePath),
+                        LineCount = lineCount,
+                        ClassCount = classes,
+                        InterfaceCount = interfaces,
+                        MethodCount = methods,
+                        Dependencies = dependencies,
+                        ComplexityScore = complexityScore,
+                        LastModified = lastModified
+                    });
+                }
+                catch (Exception syntaxEx)
+                {
+                    // File exists but has syntax errors - still include it with basic info
+                    Logger.LogWarning(syntaxEx, "Syntax error in file {FilePath}, including with basic metadata", filePath);
+                    
+                    fileInfos.Add(new CodeAnalysis.FileInfo
+                    {
+                        Path = filePath,
+                        Name = _fileSystem.Path.GetFileName(filePath),
+                        LineCount = lineCount,
+                        ClassCount = 0,
+                        InterfaceCount = 0,
+                        MethodCount = 0,
+                        Dependencies = Array.Empty<string>(),
+                        ComplexityScore = 0.0,
+                        LastModified = lastModified
+                    });
+                }
             }
             catch (Exception ex)
             {
-                Logger.LogWarning(ex, "Error analyzing file {FilePath}", filePath);
+                Logger.LogWarning(ex, "Error reading file {FilePath}", filePath);
+                // Don't add to fileInfos if we can't even read the file
             }
         }
 
@@ -264,7 +296,7 @@ public class AnalyzeProjectStructureHandler : BaseHandler<AnalyzeProjectStructur
         var totalClasses = files.Sum(f => f.ClassCount);
         var totalInterfaces = files.Sum(f => f.InterfaceCount);
         var totalMethods = files.Sum(f => f.MethodCount);
-        var averageComplexity = files.Average(f => f.ComplexityScore);
+        var averageComplexity = files.Any() ? files.Average(f => f.ComplexityScore) : 0.0;
 
         var largestFiles = files
             .OrderByDescending(f => f.LineCount)
@@ -798,5 +830,62 @@ public class AnalyzeProjectStructureHandler : BaseHandler<AnalyzeProjectStructur
         };
 
         return (prioritizedFiles, prioritizedNamespaces, optimizedArchitecture);
+    }
+
+    private Result<AnalyzeProjectStructureResponse> CreateEmptyProjectResponse(string reason)
+    {
+        var projectInfo = new ProjectInfo
+        {
+            Name = "Empty",
+            Path = "",
+            Framework = null,
+            Version = null,
+            PackageReferences = Array.Empty<string>(),
+            ProjectReferences = Array.Empty<string>(),
+            LastModified = DateTime.UtcNow
+        };
+
+        var metrics = new ProjectMetrics
+        {
+            TotalLines = 0,
+            TotalClasses = 0,
+            TotalInterfaces = 0,
+            TotalMethods = 0,
+            TotalFiles = 0,
+            AverageComplexity = 0.0,
+            CohesionScore = 0.0,
+            CouplingScore = 0.0,
+            LargestFiles = Array.Empty<string>(),
+            MostComplexClasses = Array.Empty<string>()
+        };
+
+        var architecture = new ArchitectureAnalysis
+        {
+            Layers = Array.Empty<LayerInfo>(),
+            ArchitecturePatterns = Array.Empty<string>(),
+            PotentialIssues = new[] { reason },
+            DependencyGraph = new DependencyGraph
+            {
+                Nodes = Array.Empty<DependencyNode>(),
+                Edges = Array.Empty<DependencyEdge>(),
+                CircularDependencies = 0
+            },
+            ArchitectureScore = 0.0
+        };
+
+        var response = new AnalyzeProjectStructureResponse
+        {
+            ProjectInfo = projectInfo,
+            Namespaces = Array.Empty<NamespaceInfo>(),
+            Files = Array.Empty<CodeAnalysis.FileInfo>(),
+            Metrics = metrics,
+            Architecture = architecture,
+            Dependencies = null,
+            TestStructure = null,
+            EstimatedTokens = 100,
+            SummarizationApplied = false
+        };
+
+        return Result<AnalyzeProjectStructureResponse>.Success(response);
     }
 }

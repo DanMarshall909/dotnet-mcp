@@ -11,7 +11,7 @@ public class WorkspaceManager
 {
     private readonly SolutionDiscoveryService _solutionDiscovery;
     private readonly CompilationService _compilationService;
-    private readonly BuildValidationService _buildValidation;
+    private readonly IBuildValidationService _buildValidation;
     private readonly IFileSystem _fileSystem;
     private readonly ILogger<WorkspaceManager> _logger;
 
@@ -21,7 +21,7 @@ public class WorkspaceManager
     public WorkspaceManager(
         SolutionDiscoveryService solutionDiscovery,
         CompilationService compilationService,
-        BuildValidationService buildValidation,
+        IBuildValidationService buildValidation,
         IFileSystem fileSystem,
         ILogger<WorkspaceManager> logger)
     {

@@ -54,6 +54,9 @@ public static class PatternBasedFixes
         [@"\bprivate\s+(\w+)\s+([a-z]\w*)"] = "private $1 _$2", // private field naming
         [@"\bpublic\s+const\s+(\w+)\s+([a-z]\w*)"] = "public const $1 $2", // const naming
         
+        // Spacing improvements
+        [@"if\(([^)]+)\)"] = "if ($1)", // add space after if
+        
         // String interpolation
         [@"string\.Format\(""([^""]*)"",\s*([^)]+)\)"] = "$\"$1\"", // String.Format to interpolation
         
@@ -141,22 +144,121 @@ public static class PatternBasedFixes
     }
 
     /// <summary>
-    /// Get fix suggestions for build errors
+    /// Apply build error fixes and return suggested fixes
     /// </summary>
-    public static string[] GetFixSuggestions(string buildError)
+    public static string[] ApplyBuildErrorFixes(string errorMessage)
     {
         var suggestions = new List<string>();
 
         foreach (var (errorCode, rule) in BuildErrorFixes)
         {
-            var match = Regex.Match(buildError, rule.Pattern);
-            if (match.Success)
+            if (errorMessage.Contains(errorCode))
             {
-                suggestions.Add(rule.FixGenerator(match));
+                var match = Regex.Match(errorMessage, rule.Pattern);
+                if (match.Success)
+                {
+                    suggestions.Add(rule.FixGenerator(match));
+                }
+            }
+        }
+
+        // For CS0246 errors, try to extract type name and suggest common namespaces
+        if (errorMessage.Contains("CS0246"))
+        {
+            var typeMatches = Regex.Matches(errorMessage, @"'(\w+)'.*could not be found");
+            foreach (Match match in typeMatches)
+            {
+                var typeName = match.Groups[1].Value;
+                suggestions.AddRange(GetCommonNamespacesForType(typeName));
             }
         }
 
         return suggestions.ToArray();
+    }
+
+    /// <summary>
+    /// Apply code style fixes to source code
+    /// </summary>
+    public static string ApplyCodeStyleFixes(string sourceCode)
+    {
+        var result = sourceCode;
+        
+        // Public fields to properties with capitalization
+        result = Regex.Replace(result, @"public\s+(\w+)\s+([a-z]\w*);", m => 
+        {
+            var type = m.Groups[1].Value;
+            var fieldName = m.Groups[2].Value;
+            var propertyName = char.ToUpper(fieldName[0]) + fieldName.Substring(1);
+            return $"public {type} {propertyName} {{ get; set; }}";
+        });
+        
+        // Add spaces around control flow keywords
+        result = Regex.Replace(result, @"(\w+)\(", m => 
+        {
+            var keyword = m.Groups[1].Value;
+            if (new[] { "if", "while", "for", "foreach", "switch" }.Contains(keyword))
+            {
+                return $"{keyword} (";
+            }
+            return m.Value;
+        });
+        
+        return result;
+    }
+
+    /// <summary>
+    /// Apply performance fixes to source code
+    /// </summary>
+    public static string ApplyPerformanceFixes(string sourceCode)
+    {
+        var result = sourceCode;
+        
+        // Replace common performance anti-patterns
+        result = result.Replace("items.ToList().Count", "items.Count()");
+        result = result.Replace("string.Concat(", "string.Join(\"\", new[] { ");
+        result = result.Replace("items.Where(x => x != null).ToList()", "items.Where(x => x != null).ToArray()");
+        
+        return result;
+    }
+
+    /// <summary>
+    /// Get fix suggestions for build errors
+    /// </summary>
+    public static string[] GetFixSuggestions(string buildError)
+    {
+        return ApplyBuildErrorFixes(buildError);
+    }
+
+    /// <summary>
+    /// Get fixes for a specific error message
+    /// </summary>
+    public static string[] GetFixesForError(string errorMessage)
+    {
+        return ApplyBuildErrorFixes(errorMessage);
+    }
+
+    private static string[] GetCommonNamespacesForType(string typeName)
+    {
+        var commonTypes = new Dictionary<string, string[]>
+        {
+            ["List"] = new[] { "using System.Collections.Generic;" },
+            ["Dictionary"] = new[] { "using System.Collections.Generic;" },
+            ["Task"] = new[] { "using System.Threading.Tasks;" },
+            ["HttpClient"] = new[] { "using System.Net.Http;" },
+            ["JsonSerializer"] = new[] { "using System.Text.Json;" },
+            ["ILogger"] = new[] { "using Microsoft.Extensions.Logging;" },
+            ["StringBuilder"] = new[] { "using System.Text;" },
+            ["Regex"] = new[] { "using System.Text.RegularExpressions;" },
+            ["CancellationToken"] = new[] { "using System.Threading;" },
+            ["IServiceCollection"] = new[] { "using Microsoft.Extensions.DependencyInjection;" }
+        };
+
+        if (commonTypes.TryGetValue(typeName, out var namespaces))
+        {
+            return namespaces;
+        }
+
+        return Array.Empty<string>();
     }
 }
 

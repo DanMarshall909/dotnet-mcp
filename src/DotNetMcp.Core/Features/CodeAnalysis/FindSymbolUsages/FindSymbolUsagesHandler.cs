@@ -15,10 +15,10 @@ namespace DotNetMcp.Core.Features.CodeAnalysis;
 public class FindSymbolUsagesHandler : BaseHandler<FindSymbolUsagesCommand, FindSymbolUsagesResponse>
 {
     private readonly IFileSystem _fileSystem;
-    private readonly BuildValidationService _buildValidationService;
+    private readonly IBuildValidationService _buildValidationService;
     private readonly CompilationService _compilationService;
 
-    public FindSymbolUsagesHandler(ILogger<FindSymbolUsagesHandler> logger, IFileSystem fileSystem, BuildValidationService buildValidationService, CompilationService compilationService) 
+    public FindSymbolUsagesHandler(ILogger<FindSymbolUsagesHandler> logger, IFileSystem fileSystem, IBuildValidationService buildValidationService, CompilationService compilationService) 
         : base(logger)
     {
         _fileSystem = fileSystem;

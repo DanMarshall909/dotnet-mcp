@@ -186,8 +186,8 @@ public class ModernExtractInterfaceRefactorer : RefactoringBase
                 .ToArray();
 
             return Result.Success(new ExtractInterfaceResponse(
-                modifiedRoot.ToFullString(),
-                interfaceDecl.ToFullString(),
+                modifiedRoot.NormalizeWhitespace().ToFullString(),
+                interfaceDecl.NormalizeWhitespace().ToFullString(),
                 extractedMemberNames,
                 interfaceName));
         }

@@ -21,8 +21,12 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
-        // Add MediatR
-        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(ServiceCollectionExtensions).Assembly));
+        // Add MediatR with behaviors
+        services.AddMediatR(cfg => 
+        {
+            cfg.RegisterServicesFromAssembly(typeof(ServiceCollectionExtensions).Assembly);
+            cfg.AddOpenBehavior(typeof(Common.ValidationBehavior<,>));
+        });
 
         // Add validators
         services.AddValidatorsFromAssembly(typeof(ServiceCollectionExtensions).Assembly);
@@ -47,10 +51,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<MultiFileRefactoringEngine>();
         services.AddScoped<DeltaGenerator>();
         
-        // Add file system abstraction
-        services.AddSingleton<IFileSystem, FileSystem>();
+        // Add file system abstraction (only if not already registered)
+        if (!services.Any(x => x.ServiceType == typeof(IFileSystem)))
+        {
+            services.AddSingleton<IFileSystem, FileSystem>();
+        }
         
         // Add build validation service
+        services.AddScoped<IBuildValidationService, BuildValidationService>();
         services.AddScoped<BuildValidationService>();
         
         // Add compilation service for duplicate file handling

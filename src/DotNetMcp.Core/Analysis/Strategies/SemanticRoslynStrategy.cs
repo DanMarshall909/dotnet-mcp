@@ -9,7 +9,7 @@ namespace DotNetMcp.Core.Analysis.Strategies;
 public class SemanticRoslynStrategy : IAnalysisStrategy
 {
     private readonly CompilationService _compilationService;
-    private readonly BuildValidationService _buildValidationService;
+    private readonly IBuildValidationService _buildValidationService;
     private readonly ILogger<SemanticRoslynStrategy> _logger;
 
     public AnalysisStrategyType Type => AnalysisStrategyType.SemanticRoslyn;
@@ -17,7 +17,7 @@ public class SemanticRoslynStrategy : IAnalysisStrategy
 
     public SemanticRoslynStrategy(
         CompilationService compilationService,
-        BuildValidationService buildValidationService,
+        IBuildValidationService buildValidationService,
         ILogger<SemanticRoslynStrategy> logger)
     {
         _compilationService = compilationService;

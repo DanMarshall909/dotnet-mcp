@@ -199,13 +199,12 @@ public class AnalyzeProjectStructureCommandValidator : AbstractValidator<Analyze
             .WithMessage("Project path cannot be empty");
 
         RuleFor(x => x.MaxDepth)
-            .GreaterThan(0)
-            .LessThanOrEqualTo(10)
-            .WithMessage("Max depth must be between 1 and 10");
+            .InclusiveBetween(1, 100)
+            .WithMessage("Max depth must be between 1 and 100");
 
         RuleFor(x => x.MaxTokens)
-            .GreaterThan(0)
+            .InclusiveBetween(1, 50000)
             .When(x => x.OptimizeForTokens)
-            .WithMessage("Max tokens must be greater than 0 when token optimization is enabled");
+            .WithMessage("Max tokens must be between 1 and 50000 when token optimization is enabled");
     }
 }

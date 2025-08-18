@@ -15,10 +15,10 @@ namespace DotNetMcp.Core.Features.CodeAnalysis;
 public class GetClassContextHandler : BaseHandler<GetClassContextCommand, GetClassContextResponse>
 {
     private readonly IFileSystem _fileSystem;
-    private readonly BuildValidationService _buildValidationService;
+    private readonly IBuildValidationService _buildValidationService;
     private readonly CompilationService _compilationService;
 
-    public GetClassContextHandler(ILogger<GetClassContextHandler> logger, IFileSystem fileSystem, BuildValidationService buildValidationService, CompilationService compilationService) 
+    public GetClassContextHandler(ILogger<GetClassContextHandler> logger, IFileSystem fileSystem, IBuildValidationService buildValidationService, CompilationService compilationService) 
         : base(logger)
     {
         _fileSystem = fileSystem;
@@ -175,16 +175,24 @@ public class GetClassContextHandler : BaseHandler<GetClassContextCommand, GetCla
 
     private async Task<ClassInfo> CreateClassInfo(ClassDeclarationSyntax classNode, string filePath, SyntaxTree syntaxTree)
     {
-        // Use CompilationService to handle duplicate file names properly
-        var compilation = await _compilationService.CreateSingleFileCompilationAsync(filePath);
-        var semanticModel = _compilationService.GetSemanticModel(compilation, filePath);
-
-        if (semanticModel == null)
+        // Try to use CompilationService for semantic analysis, fall back to syntax-only analysis
+        SemanticModel? semanticModel = null;
+        ISymbol? symbol = null;
+        
+        try
         {
-            Logger.LogWarning("Could not create semantic model for file: {FilePath}", filePath);
-            throw new InvalidOperationException($"Could not create semantic model for file: {filePath}");
+            var compilation = await _compilationService.CreateSingleFileCompilationAsync(filePath);
+            semanticModel = _compilationService.GetSemanticModel(compilation, filePath);
+            
+            if (semanticModel != null)
+            {
+                symbol = semanticModel.GetDeclaredSymbol(classNode);
+            }
         }
-        var symbol = semanticModel.GetDeclaredSymbol(classNode);
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not create semantic model for file: {FilePath}. Falling back to syntax-only analysis.", filePath);
+        }
 
         var linePosition = classNode.GetLocation().GetLineSpan().StartLinePosition;
 
@@ -230,16 +238,24 @@ public class GetClassContextHandler : BaseHandler<GetClassContextCommand, GetCla
 
     private async Task<ClassInfo> CreateClassInfoFromInterface(InterfaceDeclarationSyntax interfaceNode, string filePath, SyntaxTree syntaxTree)
     {
-        // Use CompilationService to handle duplicate file names properly
-        var compilation = await _compilationService.CreateSingleFileCompilationAsync(filePath);
-        var semanticModel = _compilationService.GetSemanticModel(compilation, filePath);
-
-        if (semanticModel == null)
+        // Try to use CompilationService for semantic analysis, fall back to syntax-only analysis
+        SemanticModel? semanticModel = null;
+        ISymbol? symbol = null;
+        
+        try
         {
-            Logger.LogWarning("Could not create semantic model for file: {FilePath}", filePath);
-            throw new InvalidOperationException($"Could not create semantic model for file: {filePath}");
+            var compilation = await _compilationService.CreateSingleFileCompilationAsync(filePath);
+            semanticModel = _compilationService.GetSemanticModel(compilation, filePath);
+            
+            if (semanticModel != null)
+            {
+                symbol = semanticModel.GetDeclaredSymbol(interfaceNode);
+            }
         }
-        var symbol = semanticModel.GetDeclaredSymbol(interfaceNode);
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not create semantic model for file: {FilePath}. Falling back to syntax-only analysis.", filePath);
+        }
 
         var linePosition = interfaceNode.GetLocation().GetLineSpan().StartLinePosition;
 
@@ -277,12 +293,12 @@ public class GetClassContextHandler : BaseHandler<GetClassContextCommand, GetCla
         };
     }
 
-    private MethodInfo? CreateMethodInfo(MethodDeclarationSyntax method, SemanticModel semanticModel)
+    private MethodInfo? CreateMethodInfo(MethodDeclarationSyntax method, SemanticModel? semanticModel)
     {
         try
         {
             var linePosition = method.GetLocation().GetLineSpan().StartLinePosition;
-            var symbol = semanticModel.GetDeclaredSymbol(method);
+            var symbol = semanticModel?.GetDeclaredSymbol(method);
 
             var parameters = method.ParameterList.Parameters
                 .Select(p => new ParameterInfo

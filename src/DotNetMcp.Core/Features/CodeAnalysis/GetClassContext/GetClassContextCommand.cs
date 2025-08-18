@@ -172,9 +172,8 @@ public class GetClassContextCommandValidator : AbstractValidator<GetClassContext
             .WithMessage("Class name must be a valid C# identifier");
 
         RuleFor(x => x.MaxDepth)
-            .GreaterThan(0)
-            .LessThanOrEqualTo(5)
-            .WithMessage("Max depth must be between 1 and 5");
+            .InclusiveBetween(1, 10)
+            .WithMessage("Max depth must be between 1 and 10");
 
         RuleFor(x => x.MaxTokens)
             .GreaterThan(0)

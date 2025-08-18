@@ -1,10 +1,35 @@
-# MCP .NET Server v2.0.0 Release Notes
+# MCP .NET Server v2.1.0 Release Notes
 
-## 🚀 Major Release - Robust Code Analysis Platform
+## 🚀 Production Polish Release - Auto-Fix & Clean Architecture
+
+This polish release adds comprehensive auto-fix capabilities, batch refactoring support, and professional project organization while maintaining all the robust features from v2.0.0.
 
 This release transforms the MCP .NET server into a production-ready, robust code analysis platform that gracefully handles complex scenarios and ensures tools never completely fail.
 
-## ✨ What's New
+## ✨ What's New in v2.1.0
+
+### 🔧 **Auto-Fix System**
+- **Comprehensive auto-fixes** for repetitive code issues that LLMs typically handle
+- **Roslyn-based fixes** for using statements, nullability warnings, async method signatures
+- **Pattern-based fixes** for build errors, code style improvements, and performance optimizations  
+- **Confidence levels** and suggestions for manual review when needed
+- **Smart namespace detection** for missing using statements
+
+### 🔄 **Batch Refactoring**
+- **Multiple operations in one shot** - combine extractions, renames, and auto-fixes
+- **Atomic operations** with rollback - all succeed or none are applied
+- **Code chaining** - results flow seamlessly from one operation to the next
+- **Comprehensive reporting** showing exactly what succeeded or failed
+- **Production-safe** with full error handling and state restoration
+
+### 🗂️ **Professional Organization**  
+- **Clean project structure** suitable for enterprise development
+- **Organized build artifacts** in structured directories
+- **Professional README** with comprehensive feature overview
+- **Git-friendly patterns** with appropriate ignore rules
+- **Eliminated compiler warnings** (only 3 intentional ones remain)
+
+## 🏗️ Enhanced Architecture (from v2.0.0)
 
 ### 🎯 Core Features
 
@@ -34,7 +59,7 @@ This release transforms the MCP .NET server into a production-ready, robust code
 - **Alternative strategies** suggested when preferred methods fail
 - **Comprehensive error type hierarchy** for different failure scenarios
 
-### 🛠️ MCP Tools Available
+### 🛠️ MCP Tools Available (10 Total)
 
 1. **`extract_method`** - Extract code into new methods
 2. **`rename_symbol`** - Rename symbols throughout codebase  
@@ -43,7 +68,9 @@ This release transforms the MCP .NET server into a production-ready, robust code
 5. **`get_class_context`** - Get comprehensive class context with dependencies
 6. **`analyze_project_structure`** - Analyze project architecture and metrics
 7. **`find_symbol_usages`** - Find symbol usages with impact analysis
-8. **`analyze_solution`** - **NEW!** Analyze solution structure and dependencies
+8. **`analyze_solution`** - Analyze solution structure and dependencies
+9. **`auto_fix`** - **NEW!** Apply automatic fixes to common code issues
+10. **`batch_refactor`** - **NEW!** Apply multiple refactoring operations in sequence
 
 ## 🐛 Bug Fixes
 

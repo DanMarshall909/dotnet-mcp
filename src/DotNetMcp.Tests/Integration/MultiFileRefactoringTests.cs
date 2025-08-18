@@ -192,9 +192,15 @@ namespace TestNamespace
     {
         // Arrange
         using var engine = new MultiFileRefactoringEngine();
+        var csharpFiles = new[]
+        {
+            Path.Combine(_testDirectory, "ClassA.cs"),
+            Path.Combine(_testDirectory, "ClassB.cs"),
+            Path.Combine(_testDirectory, "HelperClass.cs")
+        };
 
-        // Act
-        var loaded = await engine.LoadSolutionAsync(_projectPath);
+        // Act - Use LoadFilesAsync instead of LoadSolutionAsync to avoid MSBuild dependency
+        var loaded = await engine.LoadFilesAsync(csharpFiles);
 
         // Assert
         Assert.True(loaded);

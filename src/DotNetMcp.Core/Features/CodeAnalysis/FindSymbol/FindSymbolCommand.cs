@@ -118,11 +118,12 @@ public class FindSymbolCommandValidator : AbstractValidator<FindSymbolCommand>
             .NotEmpty()
             .WithMessage("Symbol name cannot be empty")
             .Must(name => !string.IsNullOrWhiteSpace(name))
-            .WithMessage("Symbol name cannot be whitespace only");
+            .WithMessage("Symbol name cannot be empty")
+            .Matches(@"^[a-zA-Z_][a-zA-Z0-9_]*$")
+            .WithMessage("Symbol name must be a valid C# identifier");
 
         RuleFor(x => x.MaxResults)
-            .GreaterThan(0)
-            .LessThanOrEqualTo(1000)
+            .InclusiveBetween(1, 1000)
             .WithMessage("Max results must be between 1 and 1000");
 
         RuleFor(x => x.MaxTokens)

@@ -16,10 +16,10 @@ namespace DotNetMcp.Core.Features.CodeAnalysis;
 public class FindSymbolHandler : BaseHandler<FindSymbolCommand, FindSymbolResponse>
 {
     private readonly IFileSystem _fileSystem;
-    private readonly BuildValidationService _buildValidationService;
+    private readonly IBuildValidationService _buildValidationService;
     private readonly CompilationService _compilationService;
 
-    public FindSymbolHandler(ILogger<FindSymbolHandler> logger, IFileSystem fileSystem, BuildValidationService buildValidationService, CompilationService compilationService) 
+    public FindSymbolHandler(ILogger<FindSymbolHandler> logger, IFileSystem fileSystem, IBuildValidationService buildValidationService, CompilationService compilationService) 
         : base(logger)
     {
         _fileSystem = fileSystem;
@@ -126,19 +126,18 @@ public class FindSymbolHandler : BaseHandler<FindSymbolCommand, FindSymbolRespon
 
         try
         {
-            var content = await _fileSystem.File.ReadAllTextAsync(filePath);
-            var syntaxTree = CSharpSyntaxTree.ParseText(content, path: filePath);
-            var root = await syntaxTree.GetRootAsync();
-
             // Use CompilationService to handle duplicate file names properly
             var compilation = await _compilationService.CreateSingleFileCompilationAsync(filePath);
             var semanticModel = _compilationService.GetSemanticModel(compilation, filePath);
+            var syntaxTree = _compilationService.GetSyntaxTree(compilation, filePath);
 
-            if (semanticModel == null)
+            if (semanticModel == null || syntaxTree == null)
             {
-                Logger.LogWarning("Could not create semantic model for file: {FilePath}", filePath);
+                Logger.LogWarning("Could not create semantic model or syntax tree for file: {FilePath}", filePath);
                 return symbols;
             }
+
+            var root = await syntaxTree.GetRootAsync();
 
             // Find symbols based on type
             var foundNodes = new List<(SyntaxNode node, SymbolType type)>();

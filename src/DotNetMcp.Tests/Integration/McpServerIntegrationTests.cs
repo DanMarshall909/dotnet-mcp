@@ -5,6 +5,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotNetMcp.Server;
+using DotNetMcp.Core.Extensions;
+using System.IO.Abstractions;
+using System.IO.Abstractions.TestingHelpers;
 
 namespace DotNetMcp.Tests.Integration;
 
@@ -13,39 +16,56 @@ public class McpServerIntegrationTests : IDisposable
     private readonly string _testDirectory;
     private readonly string _testFilePath;
     private readonly McpServer _mcpServer;
+    private readonly MockFileSystem _fileSystem;
 
     public McpServerIntegrationTests()
     {
-        _testDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-        Directory.CreateDirectory(_testDirectory);
-        _testFilePath = Path.Combine(_testDirectory, "TestClass.cs");
+        _testDirectory = "/test/project";
+        _testFilePath = "/test/project/TestClass.cs";
+        _fileSystem = new MockFileSystem();
 
-        // Set up DI container
+        // Set up DI container with modern approach
         var services = new ServiceCollection();
-        services.AddSingleton<ILogger<McpServer>>(NullLogger<McpServer>.Instance);
-        services.AddSingleton<ILogger<ExtractMethodTool>>(NullLogger<ExtractMethodTool>.Instance);
-        services.AddSingleton<ILogger<ExtractMethodCompactTool>>(NullLogger<ExtractMethodCompactTool>.Instance);
-        services.AddSingleton<ILogger<RenameSymbolTool>>(NullLogger<RenameSymbolTool>.Instance);
-        services.AddSingleton<ILogger<RenameSymbolMultiFileTool>>(NullLogger<RenameSymbolMultiFileTool>.Instance);
-        services.AddSingleton<ILogger<ExtractInterfaceTool>>(NullLogger<ExtractInterfaceTool>.Instance);
-        services.AddSingleton<ILogger<IntroduceVariableTool>>(NullLogger<IntroduceVariableTool>.Instance);
-        services.AddSingleton<ExtractMethodTool>();
-        services.AddSingleton<ExtractMethodCompactTool>();
-        services.AddSingleton<RenameSymbolTool>();
-        services.AddSingleton<RenameSymbolMultiFileTool>();
-        services.AddSingleton<ExtractInterfaceTool>();
-        services.AddSingleton<IntroduceVariableTool>();
+        services.AddSingleton<IFileSystem>(_fileSystem);
+        services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Warning));
+        services.AddCoreServices();
 
         var serviceProvider = services.BuildServiceProvider();
         _mcpServer = new McpServer(serviceProvider);
+        
+        // Set up test files
+        SetupTestFiles();
+    }
+    
+    private void SetupTestFiles()
+    {
+        _fileSystem.AddDirectory(_testDirectory);
+        _fileSystem.AddFile(_testFilePath, new MockFileData(@"
+using System;
+
+namespace TestNamespace
+{
+    public class TestClass
+    {
+        public void TestMethod()
+        {
+            Console.WriteLine(""Hello World"");
+        }
+    }
+}
+"));
+        
+        // Add a project file
+        _fileSystem.AddFile("/test/project/TestProject.csproj", new MockFileData(@"<Project Sdk=""Microsoft.NET.Sdk"">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+  </PropertyGroup>
+</Project>"));
     }
 
     public void Dispose()
     {
-        if (Directory.Exists(_testDirectory))
-        {
-            Directory.Delete(_testDirectory, true);
-        }
+        // MockFileSystem doesn't need disposal
     }
 
     [Fact]
@@ -89,15 +109,19 @@ public class McpServerIntegrationTests : IDisposable
         Assert.NotNull(response);
         var tools = response["result"]?["tools"]?.AsArray();
         Assert.NotNull(tools);
-        Assert.Equal(6, tools.Count);
+        Assert.Equal(10, tools.Count);
 
         var toolNames = tools.Select(t => t?["name"]?.GetValue<string>()).ToArray();
         Assert.Contains("extract_method", toolNames);
-        Assert.Contains("extract_method_compact", toolNames);
         Assert.Contains("rename_symbol", toolNames);
-        Assert.Contains("rename_symbol_multi_file", toolNames);
         Assert.Contains("extract_interface", toolNames);
-        Assert.Contains("introduce_variable", toolNames);
+        Assert.Contains("find_symbol", toolNames);
+        Assert.Contains("get_class_context", toolNames);
+        Assert.Contains("analyze_project_structure", toolNames);
+        Assert.Contains("find_symbol_usages", toolNames);
+        Assert.Contains("analyze_solution", toolNames);
+        Assert.Contains("auto_fix", toolNames);
+        Assert.Contains("batch_refactor", toolNames);
     }
 
     [Fact]
@@ -120,7 +144,7 @@ namespace TestNamespace
     }
 }";
 
-        await File.WriteAllTextAsync(_testFilePath, sourceCode);
+        _fileSystem.AddFile(_testFilePath, new MockFileData(sourceCode));
 
         var request = new JsonObject
         {
@@ -132,9 +156,10 @@ namespace TestNamespace
                 ["name"] = "extract_method",
                 ["arguments"] = new JsonObject
                 {
-                    ["filePath"] = _testFilePath,
+                    ["code"] = sourceCode,
                     ["selectedCode"] = "int sum = a + b;",
-                    ["methodName"] = "CalculateSum"
+                    ["methodName"] = "CalculateSum",
+                    ["filePath"] = _testFilePath
                 }
             }
         };
@@ -148,8 +173,8 @@ namespace TestNamespace
         Assert.NotNull(content);
         
         var jsonResult = JsonSerializer.Deserialize<JsonElement>(content);
-        Assert.True(jsonResult.GetProperty("success").GetBoolean());
-        Assert.Contains("CalculateSum", jsonResult.GetProperty("modifiedContent").GetString()!);
+        Assert.Contains("CalculateSum", jsonResult.GetProperty("ModifiedCode").GetString()!);
+        Assert.Contains("CalculateSum", jsonResult.GetProperty("ExtractedMethod").GetString()!);
     }
 
     [Fact]

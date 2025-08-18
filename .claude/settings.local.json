@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebSearch",
+      "Bash(dotnet new:*)",
+      "Bash(source ~/.bashrc)",
+      "Bash(dotnet --version)",
+      "Bash(export:*)",
+      "Bash(echo $PATH)",
+      "Bash(flatpak-spawn:*)",
+      "Bash(rm:*)",
+      "Bash(mkdir:*)",
+      "Bash(dotnet test:*)"
+    ],
+    "deny": [],
+    "ask": [],
+    "defaultMode": "acceptEdits",
+    "additionalDirectories": [
+      "/usr"
+    ]
+  }
+}

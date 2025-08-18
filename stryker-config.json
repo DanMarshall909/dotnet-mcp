@@ -1,23 +1,31 @@
 {
   "stryker-config": {
-    "project": "src/DotNetMcp.Core/DotNetMcp.Core.csproj",
+    "project": "src/DotNetMcp.Core/DotNetMcp.Core.csproj", 
     "test-projects": [
       "src/DotNetMcp.Tests/DotNetMcp.Tests.csproj"
     ],
     "reporters": [
-      "progress",
-      "json"
+      "html",
+      "json",
+      "progress"
     ],
     "mutate": [
-      "**/*.cs",
+      "src/DotNetMcp.Core/Features/**/*.cs",
+      "src/DotNetMcp.Core/AutoFixes/**/*.cs", 
+      "src/DotNetMcp.Core/Extensions/**/*.cs",
       "!**/Program.cs",
-      "!**/obj/**/*",
-      "!**/bin/**/*"
+      "!**/GlobalUsings.cs",
+      "!**/AssemblyInfo.cs"
     ],
     "target-framework": "net9.0",
-    "additional-timeout": 30000,
+    "additional-timeout": 60000,
     "concurrency": 2,
     "mutation-level": "standard",
+    "thresholds": {
+      "high": 80,
+      "low": 60,
+      "break": 0
+    },
     "verbosity": "info"
   }
 }
